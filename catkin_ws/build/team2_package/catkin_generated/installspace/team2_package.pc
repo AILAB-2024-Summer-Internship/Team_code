@@ -1,8 +1,0 @@
-prefix=/home/ailab/Desktop/CARLA_Leaderboard_2.0/CARLA_Leaderboard_20/team_code/catkin_ws/install
-
-Name: team2_package
-Description: Description of team2_package
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib -lteam2_package
-Requires: message_runtime carla_common carla_msgs carla_spawn_objects derived_object_msgs geometry_msgs nav_msgs ros_compatibility roscpp rosgraph_msgs rospy sensor_msgs shape_msgs std_msgs tf2_msgs visualization_msgs

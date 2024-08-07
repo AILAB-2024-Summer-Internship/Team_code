@@ -1,8 +1,0 @@
-prefix=/usr/local
-
-Name: team2_package
-Description: Description of team2_package
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib 
-Requires: 
