@@ -28,19 +28,12 @@ void GlobalPlanner::route_cb(const carla_msgs::CarlaRoute::ConstPtr& msg) {
     }
     options.resize(size);
     waypoints.resize(size);
-    double time;
-    ros::Time time1 = ros::Time::now();
     route_interpolate(waypoints, options);
-    ros::Time time2 = ros::Time::now();
-    time = time2.toSec() - time1.toSec();
-    std::cout << "time: " << time << std::endl;
-    std::cout << "count: " << count_interpolate << std::endl;
-    count_interpolate = 0;
 }
 
 void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, const std::vector<int>& options) {
     if (waypoints.empty()) {
-        std::cerr << "Error: waypoints is empty." << std::endl;
+        std::cerr << "Error: waypoints empty." << std::endl;
         return;
     }
     const size_t waypoints_size = waypoints.size();
@@ -81,7 +74,7 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
                         xv = A.colPivHouseholderQr().solve(b);
                     }
 
-                    int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 2);
+                    int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 4);
                     for (int j = 0; j < num_points; j++) {
                         my_options.push_back(option);
                         float t = static_cast<float>(j) / num_points;
@@ -91,7 +84,7 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
                     }
                 }
             } else { // linear interpolation for straight road
-                int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 4);
+                int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 2);
                 for (int j = 0; j < num_points; j++) {
                     my_options.push_back(option);
                     float t = static_cast<float>(j) / num_points;
@@ -101,13 +94,16 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
                 }
             }
         } else if (option == 1 || option == 2) { // cubic spline interpolaiton for intersection
-            const auto& waypoint3 = waypoints[i+2];
+            const auto& waypoint0 = waypoints[i - 1];
+            float x0 = waypoint0.x;
+            float y0 = waypoint0.y;
+            const auto& waypoint3 = waypoints[i + 2];
             float x3 = waypoint3.x;
             float y3 = waypoint3.y;
             float mid_point_x, mid_point_y;
             std::vector<double> tempX, tempY;
-            tempX.reserve(4);
-            tempY.reserve(4);
+            tempX.reserve(5);
+            tempY.reserve(5);
             if (option == 1 && (dx * dy < 0)) {
                 mid_point_x = x2 * (1 - 1 / std::sqrt(2)) + x1 * 1 / std::sqrt(2);
                 mid_point_y = y1 * (1 - 1 / std::sqrt(2)) + y2 * 1 / std::sqrt(2);
@@ -122,23 +118,35 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
                 mid_point_y = y2 * (1 - 1 / std::sqrt(2)) + y1 * 1 / std::sqrt(2);
             }
             if (x1 < x2) {
+                if (x0 < x1) {
+                    tempX.push_back(x0);
+                    tempY.push_back(y0);
+                }
                 tempX.push_back(x1);
                 tempX.push_back(mid_point_x);
                 tempX.push_back(x2);
-                tempX.push_back(x3);;
                 tempY.push_back(y1);
                 tempY.push_back(mid_point_y);
                 tempY.push_back(y2);
-                tempY.push_back(y3);
+                if (x2 < x3) {
+                    tempX.push_back(x3);
+                    tempY.push_back(y3);
+                }
             } else {
-                tempX.push_back(x3);
+                if (x3 < x2) {
+                    tempX.push_back(x3);
+                    tempY.push_back(y3);
+                }
                 tempX.push_back(x2);
                 tempX.push_back(mid_point_x);
                 tempX.push_back(x1);
-                tempY.push_back(y3);
                 tempY.push_back(y2);
                 tempY.push_back(mid_point_y);
                 tempY.push_back(y1);
+                if (x1 < x0) {
+                    tempX.push_back(x0);
+                    tempY.push_back(y0);
+                }
             }
 
             tk::spline s(tempX, tempY);
@@ -159,10 +167,11 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
         }
     }
     const size_t my_options_size = my_options.size();
+    std::cout << my_waypoints.size() << std::endl;
+    std::cout << my_options_size << std::endl;
     my_options.resize(my_options_size);
     my_waypoints.resize(my_options_size);
-
-    count_interpolate++;
+    
 }
 
 void GlobalPlanner::path_publisher() {
@@ -170,12 +179,12 @@ void GlobalPlanner::path_publisher() {
     msg.header.stamp = ros::Time::now();
     msg.header.frame_id = "/map";
 
-    size_t size_t = my_options.size();
+    size_t size_t = options.size();
 
     if (idx < size_t) {
-        const auto& waypoint1 = my_waypoints[idx];
-        const auto& waypoint2 = my_waypoints[idx + 1];
-      
+        const auto& waypoint1 = waypoints[idx];
+        const auto& waypoint2 = waypoints[idx + 1];
+
         if (abs(waypoint1.x-waypoint2.x) < (abs(waypoint1.y-waypoint2.y))) {
             if ((waypoint1.y <= pose[1] && pose[1] <= waypoint2.y) || (waypoint2.y <= pose[1] && pose[1] <= waypoint1.y)) {
                 idx++;
@@ -185,23 +194,21 @@ void GlobalPlanner::path_publisher() {
             if ((waypoint1.x <= pose[0] && pose[0] <= waypoint2.x) || (waypoint2.x <= pose[0] && pose[0] <= waypoint1.x)) {
                 idx++;
             }
-        }
-        else {
+        } else {
             if ((waypoint1.x <= pose[0] && pose[0] <= waypoint2.x) && (waypoint1.y <= pose[1] && pose[1] <= waypoint2.y) || 
                 (waypoint2.x <= pose[0] && pose[0] <= waypoint1.x) && (waypoint2.y <= pose[1] && pose[1] <= waypoint1.y)) {
                 idx++;
             }
         }
-
         if (idx > static_cast<int>(size_t) - 10 && idx < static_cast<int>(size_t)) {
             endidx = size_t - idx;
         }
     }
 
-    for (int i = 0; i < size_t; i++) {
-        msg.road_options.emplace_back(my_options[idx + i]);
-        msg.x.emplace_back(my_waypoints[idx + i].x);
-        msg.y.emplace_back(my_waypoints[idx + i].y);
+    for (int i = 0; i < endidx; i++) {
+        msg.road_options.emplace_back(options[idx + i]);
+        msg.x.emplace_back(waypoints[idx + i].x);
+        msg.y.emplace_back(waypoints[idx + i].y);
     }
     path_pub.publish(msg);
 }
