@@ -1,0 +1,34 @@
+<launch>
+    <arg name="VOXEL_SIZE" default="0.3"/>
+    <arg name="VOXEL_MINPTS" default="20"/>
+    <arg name="RANSAC_THRESHOLD" default="0.4"/>
+    <arg name="ROI" default="-0.4"/>
+    <arg name="EPS" default="0.6"/>
+    <arg name="EPS_RATIO" default="0.04"/>
+    <arg name="MIN_PTS" default="15"/>
+    <arg name="BOX_DIST" default="500"/>
+    <arg name="PCA_MIN" default="0.4"/>
+    <arg name="PCA_MAX" default="1.5"/>
+    <arg name="CLOUD_HEIGHT" default="1.7"/>
+
+    <node pkg="perception" type="detector" name="detector">
+        <param name="VOXEL_SIZE" value="$(arg VOXEL_SIZE)"/>
+        <param name="VOXEL_MINPTS" value="$(arg VOXEL_MINPTS)"/>
+        <param name="RANSAC_THRESHOLD" value="$(arg RANSAC_THRESHOLD)"/>
+        <param name="ROI" value="$(arg ROI)"/>
+        <param name="EPS" value="$(arg EPS)"/>
+        <param name="EPS_RATIO" value="$(arg EPS_RATIO)"/>
+        <param name="MIN_PTS" value="$(arg MIN_PTS)"/>
+        <param name="BOX_DIST" value="$(arg BOX_DIST)"/>
+        <param name="PCA_MIN" value="$(arg PCA_MIN)"/>
+        <param name="PCA_MAX" value="$(arg PCA_MAX)"/>
+        <param name="CLOUD_HEIGHT" value="$(arg CLOUD_HEIGHT)"/>
+        
+
+
+    </node>
+
+    <node pkg="rosbag" type="play" name="bag_player" args="--clock /home/hyunjun/catkin_ws_3/src/resource/2024-08-02-23-34-43.bag -l"/>
+    <node pkg="rviz" type="rviz" name="rviz" args="-d /home/hyunjun/catkin_ws_3/src/config/perception.rviz"/>
+
+</launch>
