@@ -182,8 +182,8 @@ void GlobalPlanner::path_publisher() {
     size_t size_t = options.size();
 
     if (idx < size_t) {
-        const auto& waypoint1 = waypoints[idx];
-        const auto& waypoint2 = waypoints[idx + 1];
+        const auto& waypoint1 = my_waypoints[idx];
+        const auto& waypoint2 = my_waypoints[idx + 1];
 
         if (abs(waypoint1.x-waypoint2.x) < (abs(waypoint1.y-waypoint2.y))) {
             if ((waypoint1.y <= pose[1] && pose[1] <= waypoint2.y) || (waypoint2.y <= pose[1] && pose[1] <= waypoint1.y)) {
@@ -206,9 +206,9 @@ void GlobalPlanner::path_publisher() {
     }
 
     for (int i = 0; i < endidx; i++) {
-        msg.road_options.emplace_back(options[idx + i]);
-        msg.x.emplace_back(waypoints[idx + i].x);
-        msg.y.emplace_back(waypoints[idx + i].y);
+        msg.road_options.emplace_back(my_options[idx + i]);
+        msg.x.emplace_back(my_waypoints[idx + i].x);
+        msg.y.emplace_back(my_waypoints[idx + i].y);
     }
     path_pub.publish(msg);
 }
