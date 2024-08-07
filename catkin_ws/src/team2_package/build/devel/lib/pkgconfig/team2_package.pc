@@ -1,0 +1,8 @@
+prefix=/home/ailab/Desktop/CARLA_Leaderboard_2.0/CARLA_Leaderboard_20/team_code/catkin_ws/src/team2_package/build/devel
+
+Name: team2_package
+Description: Description of team2_package
+Version: 0.0.0
+Cflags: -I/home/ailab/Desktop/CARLA_Leaderboard_2.0/CARLA_Leaderboard_20/team_code/catkin_ws/src/team2_package/build/devel/include
+Libs: -L${prefix}/lib 
+Requires: 

@@ -1,0 +1,25 @@
+<launch>
+    <arg name="cluster_tolerance" default="20"/>
+    <arg name="min_cluster_size" default="1"/>
+    <arg name="max_cluster_size" default="100"/>
+    <arg name="loop_rate_" default="10"/>
+    <node pkg="team2_package" type="filter" name="filter">
+        <param name="roi_upper" value="-1.35"/>
+        <param name="roi_lower" value="-4.0"/>
+        <param name="ransac_threshold" value="0.7"/>
+        <param name="leaf_size_x" value="0.15"/>
+        <param name="leaf_size_y" value="0.15"/>
+        <param name="leaf_size_z" value="0.15"/>
+        <param name="outlier_mean" value="0.7"/>
+        <param name="outlier_std" value="0.3"/>
+        <param name="cluster_tolerance" value="$(arg cluster_tolerance)"/>
+        <param name="min_cluster_size" value="$(arg min_cluster_size)"/>
+        <param name="max_cluster_size" value="$(arg max_cluster_size)"/>
+        <param name="eps" value="0.9"/>
+        <param name="minPts" value="10"/>
+        <param name="maxPts" value="100"/>
+        <param name="bbox_min" value="0.0001"/>
+        <param name="bbox_max" value="20"/>
+        <param name="loop_rate_" value="$(arg loop_rate_)"/>
+    </node>
+</launch>
