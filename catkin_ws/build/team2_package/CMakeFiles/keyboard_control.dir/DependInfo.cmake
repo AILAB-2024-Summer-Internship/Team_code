@@ -29,7 +29,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "/usr/include/OGRE"
   "/usr/include/opencv4"
   "/home/ailab/anaconda3/envs/py37/include/python3.7m"
-  "/home/ailab/anaconda3/envs/py37/lib/python3.7/site-packages/numpy/core/include"
+  "/home/ailab/anaconda3/lib/python3.8/site-packages/numpy/core/include"
   )
 
 # Targets to which this target links.

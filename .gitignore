@@ -1,8 +1,4 @@
-__pycache__
+__pycache__/
+.vscode/
 carla_images/
 rosbag_folder/
-.vscode/
-CarlaRoute_txt_to_json.py
-check_rosbag_empty.py
-global_plan.json
-test_agent.py

@@ -41,7 +41,7 @@ Detector::Detector() {
     
     // ROS base
     pub = nh.advertise<sensor_msgs::PointCloud2>(CLOUD_PUB_NAME, 100);
-    // box_pub = nh.advertise<visualization_msgs::MarkerArray>(BOX_PUB_NAME,100);
+    pub_box = nh.advertise<vision_msgs::BoundingBox2DArray>(BOX_PUB_NAME,100);
     sub = nh.subscribe(CLOUD_SUB_NAME, 100, &Detector::callback, this);
 
     // Downsampling
@@ -65,21 +65,11 @@ Detector::Detector() {
     Eigen::Vector3f v1(0.0f, 0.0f, -1.0f);
     seg.setAxis(v1);
 
-    // Projection
-    cloud_2d.reset(new pcl::PointCloud<pcl::PointXY>);
-    plt_x.reserve(sizeof(double) * 40000);
-    plt_y.reserve(sizeof(double) * 40000);
-
     // Clustering
     cluster_vec.reserve(sizeof(Cluster) * 20);
     cloud_clustered.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
     cloud_temp.reset(new pcl::PointCloud<pcl::PointXYZ>);
     indices_temp.reset(new pcl::PointIndices);
-
-
-    // Bounding box
-    box_x.reserve(5);
-    box_y.reserve(5);
 
 }
 
@@ -87,7 +77,6 @@ Detector::~Detector() {}
 
 void Detector::callback(const sensor_msgs::PointCloud2& msg) {
     pcl_conversions::toPCL(msg, *cloud_original);
-
 }
 
 void Detector::downsample() {
@@ -103,7 +92,6 @@ void Detector::downsample() {
     roi_filter.filter(*cloud_downsampled_);
 
 }
-
 
 void Detector::ground_extract() {
 
@@ -127,31 +115,6 @@ void Detector::ground_extract() {
     *cloud_non_ground += *cloud_roi;
 
 }
-
-void Detector::projection() {
-    cloud_2d->width = cloud_non_ground->width;
-    cloud_2d->height = cloud_non_ground->height;
-    cloud_2d->is_dense = cloud_non_ground->is_dense;
-    cloud_2d->points.resize(cloud_non_ground->points.size());
-
-    if (!plt_x.empty()) {
-        plt_x.clear();
-    }
-    if (!plt_y.empty()) {
-        plt_y.clear();
-    }
-
-    for (size_t i = 0; i < cloud_non_ground->points.size(); i++) {
-        cloud_2d->points[i].x = cloud_non_ground->points[i].x;
-        cloud_2d->points[i].y = cloud_non_ground->points[i].y;
-
-        plt_x.push_back(cloud_non_ground->points[i].x);
-        plt_y.push_back(cloud_non_ground->points[i].y);
-    }
-
-}
-
-
 
 void Detector::reset_dbscan() {
 
@@ -250,89 +213,60 @@ void Detector::dbscan() {
 
 }
 
-
-
 void Detector::bounding_box() {
-    if (!cluster_vec.size() > 0) {return;}
-    plt::clf();  // Clear the current plot
-    plt::scatter(plt_x, plt_y, 1.0);  // Plot the points
-    plt::xlim(-10,50);
-    plt::ylim(-10,10);
-    
-    for (size_t i = 0; i < cluster_vec.size(); i++) {
-        box_x = {cluster_vec[i].min_point.x, cluster_vec[i].max_point.x, cluster_vec[i].max_point.x, cluster_vec[i].min_point.x, cluster_vec[i].min_point.x};
-        box_y = {cluster_vec[i].min_point.y, cluster_vec[i].min_point.y, cluster_vec[i].max_point.y, cluster_vec[i].max_point.y, cluster_vec[i].min_point.y};
-        plt::plot(box_x,box_y,"r--");
-
-      
-
+    if (!msg_box.boxes.empty()) {
+        msg_box.boxes.clear();
     }
-    plt::pause(0.01);
+    if (cluster_vec.empty()) {return;}
+    for (const auto& elem : cluster_vec) {
+        vision_msgs::BoundingBox2D box;
+        float x = (elem.min_point.x + elem.max_point.x) / 2;
+        float y = (elem.min_point.y + elem.max_point.y) / 2;
+        float x_length = elem.max_point.x - elem.min_point.x;
+        float y_length = elem.max_point.y - elem.min_point.y;
+        box.center.x = x;
+        box.center.y = y;
+        box.center.theta = 0;
+        box.size_x = x_length;
+        box.size_y = y_length;
+        msg_box.boxes.push_back(box);
+    }
 }
 
-
-void Detector::color_cloud() {
-
-    if (!cloud_clustered->points.empty()) {
-        cloud_clustered->points.clear();
-    }
-
-    if (cluster_vec.size() == 0) {return;}
-
-    std::default_random_engine generator;
-    std::uniform_int_distribution<int> distribution(0, 255);
-    for (size_t i = 0; i < cluster_vec.size(); i++) {
-
-        uint8_t r = distribution(generator);
-        uint8_t g = distribution(generator);
-        uint8_t b = distribution(generator);
-
-        for (const auto& indices : cluster_vec[i].indices->indices) {
-            pcl::PointXYZRGB colored_point;
-            colored_point.x = (*cloud_non_ground).points[indices].x;
-            colored_point.y = (*cloud_non_ground).points[indices].y;
-            colored_point.z = (*cloud_non_ground).points[indices].z;
-            colored_point.r = r;
-            colored_point.g = g;
-            colored_point.b = b;
-            cloud_clustered->points.emplace_back(colored_point);
-        }
-
-    }
-
-}
 
 void Detector::publish() {
 
-    pcl::toROSMsg(*cloud_clustered, cloud_output_msg);
+    pcl::toROSMsg(*cloud_non_ground, cloud_output_msg);
     cloud_output_msg.header.stamp = ros::Time::now();
     cloud_output_msg.header.frame_id = FRAME_ID;
     pub.publish(cloud_output_msg);
+    msg_box.header.stamp = ros::Time::now();
+    msg_box.header.frame_id = FRAME_ID;
+    pub_box.publish(msg_box);
 }
 
 void Detector::process() {
+
     double start = ros::Time::now().toSec();
 
     downsample();
     ground_extract();
-    projection();
     dbscan();
     bounding_box();
-    color_cloud();
     publish();
 
     double end = ros::Time::now().toSec();
-    std::cout << "Processing time : " << std::to_string(end-start) << std::endl;
 
     std::cout << "cluster_vec.size() : " << cluster_vec.size() << std::endl;
-}
 
-// ----------------------------------------------------------
+    std::cout << "Processing time : " << std::to_string(end-start) << std::endl;
+
+}
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, NODE_NAME);
     Detector detector;
-    plt::figure_size(1200, 600);
+
     // ros::Rate loop_rate(10);
     while(ros::ok()) {
         detector.process();

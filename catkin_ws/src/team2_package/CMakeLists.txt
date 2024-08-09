@@ -46,8 +46,12 @@ add_message_files(FILES
   vehicle_state.msg
   longitudinal_controller.msg
   keyboard_msg.msg
+  localization_perform_measure.msg
+  tracked_object.msg
+  tracked_object_array.msg
   )
-generate_messages(DEPENDENCIES std_msgs)
+
+generate_messages(DEPENDENCIES std_msgs geometry_msgs sensor_msgs nav_msgs)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -75,6 +79,11 @@ include_directories(
   ${PYTHON_NUMPY_INCLUDE_DIR} 
 )
 
+add_library(hungarian_lib
+  src/perception/Hungarian.cpp
+)
+target_link_libraries(hungarian_lib ${catkin_LIBRARIES})
+
 #add_executable(controller src/control/controller.cpp)
 #target_link_libraries(controller ${catkin_LIBRARIES})
 
@@ -82,9 +91,9 @@ add_executable(pseudo_controller src/control/pseudo_controller.cpp)
 add_dependencies(pseudo_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(pseudo_controller ${catkin_LIBRARIES})
 
-add_executable(controller src/control/controller.cpp)
-add_dependencies(controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(controller ${catkin_LIBRARIES} ${OpenCV_LIBS})
+# add_executable(controller src/control/controller.cpp)
+# add_dependencies(controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(controller ${catkin_LIBRARIES} ${OpenCV_LIBS})
 
 add_executable(localizer src/perception/localizer.cpp)
 add_dependencies(localizer ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -94,13 +103,9 @@ add_executable(detector src/perception/detector.cpp)
 add_dependencies(detector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(detector ${catkin_LIBRARIES} ${PYTHON_LIBRARIES} ${PCL_LIBRARIES} ${CURL_LIBRARIES})
 
-add_executable(keyboard src/perception/keyboard.cpp)
-add_dependencies(keyboard ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(keyboard ${catkin_LIBRARIES})
-
-add_executable(keyboard_control src/perception/keyboard_control.cpp)
-add_dependencies(keyboard_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(keyboard_control ${catkin_LIBRARIES})
+add_executable(detector_test src/perception/detector_test.cpp)
+add_dependencies(detector_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(detector_test hungarian_lib ${catkin_LIBRARIES} ${PYTHON_LIBRARIES} ${PCL_LIBRARIES} ${CURL_LIBRARIES})
 
 add_executable(gps_to_xyz src/planning/gps_to_xyz.cpp)
 add_dependencies(gps_to_xyz ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -109,6 +114,10 @@ target_link_libraries(gps_to_xyz ${catkin_LIBRARIES})
 add_executable(global_planner src/planning/global_planner.cpp)
 add_dependencies(global_planner team2_package_generate_messages_cpp)
 target_link_libraries(global_planner ${catkin_LIBRARIES})
+
+add_executable(behavior_planner src/planning/behavior_planner.cpp)
+add_dependencies(behavior_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(behavior_planner ${catkin_LIBRARIES})
 
 #add_executable(filter_test src/perception/filter_test.cpp)
 #target_link_libraries(filter_test ${catkin_LIBRARIES})

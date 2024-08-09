@@ -1,2 +1,2 @@
-team2_package
+team2_package:vision_msgs
 -DCATKIN_DEVEL_PREFIX=/home/ailab/Desktop/CARLA_Leaderboard_2.0/CARLA_Leaderboard_20/team_code/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/ailab/Desktop/CARLA_Leaderboard_2.0/CARLA_Leaderboard_20/team_code/catkin_ws/install -G Unix Makefiles

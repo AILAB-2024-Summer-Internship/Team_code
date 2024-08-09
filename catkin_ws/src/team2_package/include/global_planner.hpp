@@ -43,8 +43,8 @@ private:
     std::vector<int> my_options;
     std::vector<waypoint> my_waypoints;
 
-    const int RESERVE_SIZE = 500;
-    const int MY_SIZE = 15000;
+    const int RESERVE_SIZE = 200;
+    const int MY_SIZE = 20000;
 };
 
 #endif

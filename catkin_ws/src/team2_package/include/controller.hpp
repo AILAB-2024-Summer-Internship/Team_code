@@ -20,12 +20,12 @@
 #include <math.h>
 #include <string>
 
-#define WHEELBASE 2.909 // Lincoln ls
+#define WHEELBASE (2.84988) // Lincoln MKZ 2020
 #define DEG_TO_RAD (M_PI/180.0)
 #define RAD_TO_DEG (180.0/M_PI)
-#define MAX_STEER_ANGLE 1.221730351448059
-#define MAX_ACCELERATION 2.5
-#define BASE_LOOK_AHEAD_DISTANCE 20.0
+#define MAX_STEER_ANGLE (1.221730351448059)
+#define MAX_ACCELERATION (2.5)
+#define BASE_LOOK_AHEAD_DISTANCE (20.0)
 #define STEERING_THRESHOLD (3.0*DEG_TO_RAD)
 
 class Controller;
@@ -143,7 +143,9 @@ class Controller{
         void actual_vel_callback(const carla_msgs::CarlaSpeedometer::ConstPtr &actual_vel_msg);
         void waypoints_sub_callback(const team2_package::globalwaypoints::ConstPtr &waypoints_msg);
         void preceding_vehicle_dist_callback(const std_msgs::Float32::ConstPtr &distance_msg);
+
         void control_flag_sub_callback(const std_msgs::Bool::ConstPtr &msg);
+
         void ACC_sub_callback(const std_msgs::Bool::ConstPtr &ACC_msg);
         void AEB_sub_callback(const std_msgs::Bool::ConstPtr &AEB_msg);
         void forward_command();

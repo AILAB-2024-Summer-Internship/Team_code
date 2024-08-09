@@ -1,4 +1,3 @@
-#include <Eigen/Dense>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
@@ -14,9 +13,6 @@
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/common/common.h>
-#include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl/common/centroid.h>
-#include <pcl/features/moment_of_inertia_estimation.h>
 
 #include <string>
 #include <algorithm>
@@ -29,8 +25,7 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <std_msgs/String.h>
-#include <rviz_visual_tools/rviz_visual_tools.h>
+#include <vision_msgs/BoundingBox2DArray.h>
 
 
 
@@ -43,11 +38,12 @@ private:
     // ROS base
     ros::NodeHandle nh;
     ros::Publisher pub;
-    // ros::Publisher box_pub;
+    ros::Publisher pub_box;
     ros::Subscriber sub;
 
     // ROS msgs
     sensor_msgs::PointCloud2 cloud_output_msg;
+    vision_msgs::BoundingBox2DArray msg_box;
 
     // PointCloud extractor (indices -> pointcloud)
     pcl::ExtractIndices<pcl::PointXYZ> extractor;
@@ -70,10 +66,6 @@ private:
     pcl::ModelCoefficients::Ptr ransac_coefficients;
     pcl::PointIndices::Ptr ransac_inliers;
 
-    // 2D projection
-    pcl::PointCloud<pcl::PointXY>::Ptr cloud_2d;
-    std::vector<double> plt_x, plt_y;
-
     // Clustering
     struct Cluster {
         int id;
@@ -94,34 +86,27 @@ private:
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_temp;
     pcl::PointIndices::Ptr indices_temp;
 
-    // Bounding box
-    Eigen::Vector2f p1;
-    Eigen::Vector2f p2;
-    Eigen::Vector2f p3;
-    Eigen::Vector2f p4;
-    std::vector<double> box_x;
-    std::vector<double> box_y;
-
 
 public:
     void get_param();
+
+    // Downsample & ground extract
     void callback(const sensor_msgs::PointCloud2& msg);
     void downsample();
     void ground_extract();
 
-    void projection();
-    void get_mean();
-    void get_covariance();
-    void pca();
-
+    // Clustering & bounding box
     void reset_dbscan();
     void create_cluster(int cluster_id, std::vector<int>& neighbor_vec);
     std::vector<int> region_query(int query_point_idx);
     void expand_cluster(std::vector<int>& neighbor_vec);
     void dbscan();
-
     void bounding_box();
-    void color_cloud();
+    
+    // Publishing & Progress
     void publish();
     void process();
+
+    
 };
+

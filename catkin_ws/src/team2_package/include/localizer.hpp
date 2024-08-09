@@ -8,12 +8,14 @@
 #include <geometry_msgs/Pose.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/NavSatFix.h>
+#include <carla_msgs/CarlaSpeedometer.h>
 #include <tf/tf.h>
 #include "team2_package/vehicle_state.h"
 #include <math.h>
 // opencv library for matrix computation and kalman filter
 #include <opencv2/opencv.hpp>
 #include <opencv2/video/tracking.hpp>
+#include "team2_package/localization_perform_measure.h"
 #include <array>
 #include <boost/bind.hpp>
 
@@ -36,8 +38,6 @@ struct Wgs84toEnu{
     // const double N = pow(a,2) / sqrt(pow(a*cos(ref_latitude_rad),2)+pow(b*sin(ref_latitude_rad),2));
 
     std::array<double,3> gps_position;
-    std::array<double,3> gps_to_world(double lat, double lon, double alt);
-    std::array<double,3> gps_to_ECEF(double lat, double lon, double alt);
     std::array<double,3> gps_to_UTM(double lat, double lon, double alt);
 
     //const std::array<double,3>ECEF_REF;
@@ -58,10 +58,19 @@ class Localizer {
         ros::NodeHandle nh;
         ros::Subscriber imu_subscriber;
         ros::Subscriber gps_subscriber;
+
+        ros::Subscriber gps_subscriber2;
+
         ros::Subscriber speed_subscriber;
+        ros::Subscriber odom_subscriber;
+
         sensor_msgs::Imu inertial_meas;
         sensor_msgs::NavSatFix gps_meas;
 
+        sensor_msgs::NavSatFix gps_for_perform_meas;
+        nav_msgs::Odometry odom;
+
+        team2_package::localization_perform_measure loc_perform_msg;
         ros::Time last_time;
         ros::Duration time_interval;
 
@@ -74,16 +83,19 @@ class Localizer {
         double current_speed;
 
         cv::Mat measurement;
-
         cv::KalmanFilter EKF;
 
         team2_package::vehicle_state vehicle_localization;
         ros::Publisher localization_publisher;
+        ros::Publisher localization_performance_measurement_publisher;
 
     public:
         Localizer();
-        void speed_sub_callback(const std_msgs::Float32::ConstPtr &speed_msg);
+        void speed_sub_callback(const carla_msgs::CarlaSpeedometer::ConstPtr &speed_msg);
+        void odom_callback(const nav_msgs::Odometry::ConstPtr &msg);
+        void gps_callback(const sensor_msgs::NavSatFix::ConstPtr& msg);
         cv::Mat f();
         void dead_reckoning();
         void local_publish();
+        void loc_perform_meas_publish();
 };

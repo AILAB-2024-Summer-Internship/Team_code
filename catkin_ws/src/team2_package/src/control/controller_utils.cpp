@@ -17,7 +17,7 @@ float Longitudinal_controller::ACC::spacing_controller::command = 0;
 
 // Speed controller
 void Longitudinal_controller::ACC::speed_controller::operator()(Controller& controller) {
-    float vel_ref = (17.0 - 15.0*(controller.steering_command))/3.6;
+    float vel_ref = (25.0 - 23.5*(controller.steering_command))/3.6;
     std::cout << "reference velocity: " << vel_ref << std::endl;
     error = vel_ref - controller.actual_vel;
     std::cout << "actual vel: " << controller.actual_vel  << " / " << "vel error: " << error << std::endl;
@@ -31,22 +31,22 @@ void Longitudinal_controller::ACC::speed_controller::operator()(Controller& cont
 
     command = (command > 1.0 ? 1.0 : (command < -1.0 ? -1.0 : command));
     std::cout << "Final longitudinal command: " << command << std::endl;
-    
+
     // Check for sudden speed drop or lack of acceleration
     float speed_change = fabs(controller.prev_speed - controller.actual_vel);
-    float accel_threshold = 0.15; // Define a threshold for minimum expected acceleration
+    float accel_threshold = 0.125; // Define a threshold for minimum expected acceleration
 
     // Add a counter to ensure the condition persists for a certain time
     if (speed_change >= 7.5 || (command > 0.95 && speed_change < accel_threshold)) {
         reverse_check_count++;
-        
+
         if (reverse_check_count >= 20) { // Maintain condition for 20 iterations
             std::cout << "------------change gear to reverse--------------" << std::endl;
             controller.back = true;
             reverse_check_count = 0;
         }
     } else { reverse_check_count = 0; } // Reset if condition is not met
-    
+
     if (command >= 0) {
         controller.longitudinal_command.throttle = command;
         controller.longitudinal_command.brake = 0;
@@ -127,7 +127,7 @@ void Lateral_controller::calculate_curvature(const Controller& controller){
     curvature_list.clear();
     //curvature = std::accumulate(curvature_list.begin(), curvature_list.end(), 0.0) / controller.waypoints.x.size(); // mean of curvature
     auto max_iter = std::max_element(curvature_list.begin(), curvature_list.end());
-    
+
     if (max_iter != curvature_list.end()) {
         curvature = *max_iter;
         std::cout << "curvature: " << curvature << std::endl;
@@ -204,8 +204,8 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
 
     alpha = atan2((target_point.y - rear_wheel_position.y), (target_point.x - rear_wheel_position.x)) - rear_wheel_position.yaw;
     float dist = sqrt(pow((target_point.y - rear_wheel_position.y),2)+pow((target_point.x - rear_wheel_position.x),2));
-    std::cout << "look ahead distance : " << dist << std::endl;
-    
+    std::cout << "look ahead distance: " << dist << std::endl;
+
     if (alpha > M_PI) {
         alpha -= 2 * M_PI;
     } else if (alpha < -M_PI) {
@@ -217,13 +217,15 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
     std::cout << "alpha: " << alpha*RAD_TO_DEG << std::endl;
     double raw_steering_angle = -atan2(2 * WHEELBASE * sin(alpha), dist);
     std::cout << "raw steering angle: " << raw_steering_angle << std::endl;
-    
-    double cliped_steering_angle = ( MAX_STEER_ANGLE < raw_steering_angle ? MAX_STEER_ANGLE : (-MAX_STEER_ANGLE > raw_steering_angle ? -MAX_STEER_ANGLE : raw_steering_angle)); // -1 ~ 1 rad
+
+    double cliped_steering_angle = (MAX_STEER_ANGLE < raw_steering_angle ? MAX_STEER_ANGLE : (-MAX_STEER_ANGLE > raw_steering_angle ? -MAX_STEER_ANGLE : raw_steering_angle)); // -1 ~ 1 rad
+    //cliped_steering_angle = linearMap(cliped_steering_angle, static_cast<double>(-MAX_STEER_ANGLE), static_cast<double>(MAX_STEER_ANGLE), -1.0, 1.0);
     double target_steering_angle = (1.0 < cliped_steering_angle ? 1.0 : (-1.0 > cliped_steering_angle ? -1.0 : cliped_steering_angle));
+
     if(fabs(cliped_steering_angle) < STEERING_THRESHOLD){
         controller.steering_command = 0.0;
     }
-    
+
     else {
         if(controller.back){ controller.steering_command = -target_steering_angle; }
         else { controller.steering_command = target_steering_angle; }
@@ -250,16 +252,20 @@ void Controller::waypoints_sub_callback(const team2_package::globalwaypoints::Co
 void Controller::ACC_sub_callback(const std_msgs::Bool::ConstPtr &ACC_msg){ is_spacing_control = ACC_msg->data; }
 void Controller::AEB_sub_callback(const std_msgs::Bool::ConstPtr &AEB_msg){ is_emergency_braking = AEB_msg->data; }
 
-Controller::Controller() 
-: actual_vel(0), forward_state_count(0), forward_lock_count(0), lateral_controller(), back(false), 
+Controller::Controller()
+: actual_vel(0), forward_state_count(0), forward_lock_count(0), lateral_controller(), back(false),
 is_emergency_braking(false), is_spacing_control(false), reverse_count(0), activate_control(false) {
     ego_vehicle_pose_subscriber = nh_.subscribe("/carla/hero/localization", 10, &Controller::pose_sub_callback, this);
     // These topic names are temporary. They will be named appropriately by planner (Ja hyun)
-    vel_ref_subscriber = nh_.subscribe("/carla/hero/ref_velocity_from_planner", 10, &Controller::vel_ref_sub_callback, this);
+    vel_ref_subscriber = nh_.subscribe("/carla/hero/global_stop", 10, &Controller::vel_ref_sub_callback, this);
     actual_vel_subscriber = nh_.subscribe("/carla/hero/Speed", 10, &Controller::actual_vel_callback, this);
     waypoints_subscriber = nh_.subscribe("/carla/hero/my_global_plan", 10, &Controller::waypoints_sub_callback, this);
     preceding_vehicle_dist_subscriber = nh_.subscribe("/carla/hero/preceding_vehicle_distance", 1, &Controller::preceding_vehicle_dist_callback, this);
     control_flag_subscriber = nh_.subscribe("/carla/control_flag", 1, &Controller::control_flag_sub_callback, this);
+
+    AEB_subscriber = nh_.subscribe("/carla/hero/global_stop", 1, &Localizer::AEB_sub_callback, this);
+    ACC_subscriber = nh_.subscribe("/carla/hero/global_ACC", 1, &Localizer::ACC_sub_callback, this);
+
     control_cmd_publisher = nh_.advertise<carla_msgs::CarlaEgoVehicleControl>("/carla/hero/vehicle_control_cmd",1);
 
     control_cmd.header.frame_id="/hero";
@@ -291,7 +297,7 @@ void Controller::publish_command() {
     if (forward_lock_count > 0) {
         forward_lock_count--;
         forward_command();
-    } else if (back) { 
+    } else if (back) {
         // Only allow reverse if forward cycles have been maintained
         if (forward_state_count >= 150) { // Ensure some forward cycles
             if (reverse_count == 0) {
@@ -304,15 +310,16 @@ void Controller::publish_command() {
             control_cmd.steer = 0.0;
             reverse_count++;
             lateral_controller.pure_pursuit(*this);
-            longitudinal_controller.AEB_ACC_control(*this);
-            control_cmd.throttle = longitudinal_command.throttle;
+            //longitudinal_controller.AEB_ACC_control(*this);
+            //control_cmd.throttle = longitudinal_command.throttle;
+            control_cmd.throttle = 0.5;
             control_cmd.steer = steering_command;
             // After reversing for 30 cycles, switch to forward mode
             if (reverse_count >= 100) {
                 back = false;  // Set back to false to enable forward mode
                 forward_lock_count = 150; // Set lock count to prevent immediate reverse
                 std::cout << "---------gear change: reverse to forward----------" << std::endl;
-                reverse_count = 0; 
+                reverse_count = 0;
             }
         } else {
             forward_command(); // Continue in forward mode if not enough forward cycles
