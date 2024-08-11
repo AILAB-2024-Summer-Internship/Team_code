@@ -27,6 +27,7 @@
 #define MAX_ACCELERATION (2.5)
 #define BASE_LOOK_AHEAD_DISTANCE (20.0)
 #define STEERING_THRESHOLD (3.0*DEG_TO_RAD)
+#define KM_PER_H_TO_M_PER_S (1.0/3.6)
 
 class Controller;
 
@@ -43,9 +44,19 @@ struct Longitudinal_controller::ACC {
 
 struct Longitudinal_controller::ACC::speed_controller {
     float error;
-    const float p_gain = 0.6;
-    const float i_gain = 0.03;
-    const float d_gain = 0.1;
+    // 2024.08.11 
+    // Ziegler - Nicoles method (v ref: 20km/h)
+    // Ku = 1.2
+    // Tu = 2.30
+
+    const float p_gain = 0.54*pow(0.9,3); // ZN init * 0.9**2 // 0.54*0.7 
+    const float i_gain = 0.2817*pow(0.9,3); // ZN init * 0.9**2 // 0.2817*0.55
+
+    // ref vel: 36km/h
+    //const float p_gain = (2*1*0.3-0.02);
+    //const float i_gain = 0.09;
+    
+    const float d_gain = 0.0;
     const float time_interval = 0.01; //100Hz
     static int reverse_check_count;
     static float i_term;
@@ -103,6 +114,7 @@ class Controller{
         ros::Subscriber waypoints_subscriber;
         ros::Subscriber preceding_vehicle_dist_subscriber;
         ros::Subscriber control_flag_subscriber;
+
         carla_msgs::CarlaEgoVehicleControl control_cmd;
         ros::Publisher control_cmd_publisher;
 
@@ -136,6 +148,17 @@ class Controller{
         bool is_spacing_control;
         // AEB flag
         bool is_emergency_braking;
+
+        /////////// Just for performance measure ////////////
+        ros::Subscriber odom_subscriber;
+        ros::Publisher ref_speed_publisher;
+        ros::Publisher actual_speed_publisher;
+        ros::Publisher throttle_publisher;
+        ros::Publisher brake_publisher;
+        ros::Publisher steer_publisher;
+        ros::Publisher XTE_publisher;
+        ros::Publisher yaw_error_publisher;
+        /////////////////////////////////////////////////////
     public:
         Controller();
         void pose_sub_callback(const team2_package::vehicle_state::ConstPtr &pose_msg);
@@ -150,8 +173,13 @@ class Controller{
         void AEB_sub_callback(const std_msgs::Bool::ConstPtr &AEB_msg);
         void forward_command();
         void publish_command();
-        bool activate_control;
-};
 
+        bool activate_control;
+        
+        //////// Just for performance evaluation ///////
+        void longitudinal_evaluation(float ref_vel, float act_vel);
+        void lateral_evaluation(float ref_y, float act_y);
+        ////////////////////////////////////////////////
+};
 
 #endif

@@ -1,7 +1,6 @@
 #include "controller.hpp"
 #include <thread>
 #include <chrono>
-
 // linearMap 함수 정의
 double linearMap(double value, double fromLow, double fromHigh, double toLow, double toHigh) {
     return toLow + (value - fromLow) * (toHigh - toLow) / (fromHigh - fromLow);
@@ -17,35 +16,48 @@ float Longitudinal_controller::ACC::spacing_controller::command = 0;
 
 // Speed controller
 void Longitudinal_controller::ACC::speed_controller::operator()(Controller& controller) {
-    float vel_ref = (25.0 - 23.5*(controller.steering_command))/3.6;
+    float vel_ref = (20.0 - 18.5*(controller.steering_command))/3.6;
+    
+    //float vel_ref = 20.0 * KM_PER_H_TO_M_PER_S;
+    std::cout << "p gain: " << p_gain << " , i gain: " << i_gain << std::endl;
+    std::cout << "i team: " << i_term << std::endl;
     std::cout << "reference velocity: " << vel_ref << std::endl;
+    
+    //// j f p e /////
+    float current_vel = controller.actual_vel; 
     error = vel_ref - controller.actual_vel;
+    //////////////////
+
     std::cout << "actual vel: " << controller.actual_vel  << " / " << "vel error: " << error << std::endl;
 
     i_term += i_gain * error * time_interval;
     command = p_gain * error + i_term + d_gain * (error - last_error) / time_interval;
-    command = linearMap(command, static_cast<float>(-MAX_ACCELERATION), static_cast<float>(MAX_ACCELERATION) , -1.0, 1.0);
+    ROS_INFO("longitudinal command: %.5f", command);
+    
+    // lower controller
+    // command = linearMap(command, static_cast<float>(-MAX_ACCELERATION), static_cast<float>(MAX_ACCELERATION) , -1.0, 1.0);
+    
     last_error = error;
-    // command = command / mapped_value; // steering 상황에서 속도 늦추기. 명령 아직 안 들어와서 일단 임시
-    // std::cout << "Command after division: " << command << std::endl;
 
     command = (command > 1.0 ? 1.0 : (command < -1.0 ? -1.0 : command));
-    std::cout << "Final longitudinal command: " << command << std::endl;
+    //std::cout << "Final longitudinal command: " << command << std::endl;
 
     // Check for sudden speed drop or lack of acceleration
     float speed_change = fabs(controller.prev_speed - controller.actual_vel);
     float accel_threshold = 0.125; // Define a threshold for minimum expected acceleration
 
+    // Chanwoo 파일에 올린 임시 코드로 테스트해보기
+    // for a moment ...
     // Add a counter to ensure the condition persists for a certain time
-    if (speed_change >= 7.5 || (command > 0.95 && speed_change < accel_threshold)) {
-        reverse_check_count++;
+    // if (speed_change >= 7.5 || (command > 0.95 && speed_change < accel_threshold)) {
+    //     reverse_check_count++;
 
-        if (reverse_check_count >= 20) { // Maintain condition for 20 iterations
-            std::cout << "------------change gear to reverse--------------" << std::endl;
-            controller.back = true;
-            reverse_check_count = 0;
-        }
-    } else { reverse_check_count = 0; } // Reset if condition is not met
+    //     if (reverse_check_count >= 20) { // Maintain condition for 20 iterations
+    //         std::cout << "------------change gear to reverse--------------" << std::endl;
+    //         controller.back = true;
+    //         reverse_check_count = 0;
+    //     }
+    // } else { reverse_check_count = 0; } // Reset if condition is not met
 
     if (command >= 0) {
         controller.longitudinal_command.throttle = command;
@@ -54,6 +66,10 @@ void Longitudinal_controller::ACC::speed_controller::operator()(Controller& cont
         controller.longitudinal_command.throttle = 0;
         controller.longitudinal_command.brake = -command;
     }
+
+    /////// Just for performance evaluation ///////
+    controller.longitudinal_evaluation(vel_ref, current_vel);
+    ///////////////////////////////////////////////
 }
 
 // Spacing controller
@@ -98,7 +114,7 @@ void Lateral_controller::polyfit_waypoints(const Controller& controller) {
     least_squares_y = cv::Mat::zeros(controller.waypoints.x.size(),1,CV_32F);
     if (controller.waypoints.x.size() < 4) {
 
-        ROS_ERROR("Not enough waypoints to perform polynomial fitting.");
+        //ROS_ERROR("Not enough waypoints to perform polynomial fitting.");
         return;
     }
     for(int index = 0; index < controller.waypoints.x.size(); index++){
@@ -110,9 +126,9 @@ void Lateral_controller::polyfit_waypoints(const Controller& controller) {
     }
     // least squares
     if (cv::solve(least_squares_x, least_squares_y, coefficients, cv::DECOMP_SVD)) {
-        ROS_INFO("Polynomial fitting successful.");
+        //ROS_INFO("Polynomial fitting successful.");
     } else {
-        ROS_ERROR("Polynomial fitting failed. The system might be under-determined.");
+        //ROS_ERROR("Polynomial fitting failed. The system might be under-determined.");
     }
 }
 
@@ -165,7 +181,7 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
 
     // Check the size of waypoints
     if (controller.waypoints.x.size() < 10 || controller.waypoints.y.size() < 10) {
-        std::cerr << "Error: Not enough waypoints to perform polynomial fitting." << std::endl;
+        //std::cerr << "Error: Not enough waypoints to perform polynomial fitting." << std::endl;
         return;
     }
 
@@ -178,7 +194,7 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
 
     // Check if closest_point_finder is empty
     if (controller.closest_point_finder.empty()) {
-        std::cerr << "Error: closest_point_finder is empty." << std::endl;
+        //std::cerr << "Error: closest_point_finder is empty." << std::endl;
         return;
     }
 
@@ -194,7 +210,7 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
                                           });
 
     if (target_point_it == controller.closest_point_finder.end()) {
-        std::cerr << "Error: No valid target point found." << std::endl;
+        //std::cerr << "Error: No valid target point found." << std::endl;
         return;
     }
 
@@ -204,7 +220,7 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
 
     alpha = atan2((target_point.y - rear_wheel_position.y), (target_point.x - rear_wheel_position.x)) - rear_wheel_position.yaw;
     float dist = sqrt(pow((target_point.y - rear_wheel_position.y),2)+pow((target_point.x - rear_wheel_position.x),2));
-    std::cout << "look ahead distance: " << dist << std::endl;
+    //std::cout << "look ahead distance: " << dist << std::endl;
 
     if (alpha > M_PI) {
         alpha -= 2 * M_PI;
@@ -212,14 +228,16 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
         alpha += 2 * M_PI;
     }
 
-    std::cout << "current yaw: " << rear_wheel_position.yaw << std::endl;
-    std::cout << "target angle: " << atan2((target_point.y - rear_wheel_position.y), (target_point.x - rear_wheel_position.x)) << std::endl;
-    std::cout << "alpha: " << alpha*RAD_TO_DEG << std::endl;
+    //std::cout << "current yaw: " << rear_wheel_position.yaw << std::endl;
+    //std::cout << "target angle: " << atan2((target_point.y - rear_wheel_position.y), (target_point.x - rear_wheel_position.x)) << std::endl;
+    //std::cout << "alpha: " << alpha*RAD_TO_DEG << std::endl;
     double raw_steering_angle = -atan2(2 * WHEELBASE * sin(alpha), dist);
-    std::cout << "raw steering angle: " << raw_steering_angle << std::endl;
+    //std::cout << "raw steering angle: " << raw_steering_angle << std::endl;
 
     double cliped_steering_angle = (MAX_STEER_ANGLE < raw_steering_angle ? MAX_STEER_ANGLE : (-MAX_STEER_ANGLE > raw_steering_angle ? -MAX_STEER_ANGLE : raw_steering_angle)); // -1 ~ 1 rad
+
     //cliped_steering_angle = linearMap(cliped_steering_angle, static_cast<double>(-MAX_STEER_ANGLE), static_cast<double>(MAX_STEER_ANGLE), -1.0, 1.0);
+
     double target_steering_angle = (1.0 < cliped_steering_angle ? 1.0 : (-1.0 > cliped_steering_angle ? -1.0 : cliped_steering_angle));
 
     if(fabs(cliped_steering_angle) < STEERING_THRESHOLD){
@@ -230,6 +248,15 @@ void Lateral_controller::pure_pursuit(Controller& controller) {
         if(controller.back){ controller.steering_command = -target_steering_angle; }
         else { controller.steering_command = target_steering_angle; }
     }
+
+    //////////////////////////// j f p e ///////////////////////////////
+    float dx = target_point.x - controller.ego_vehicle_pose.x;
+    float dy = target_point.y - controller.ego_vehicle_pose.y;
+    float heading_angle_error = atan2(dy, dx) - rear_wheel_position.yaw;
+    float XTE = sqrt(pow(dx,2) + pow(dy,2)) * sin(heading_angle_error);
+    controller.lateral_evaluation(XTE, heading_angle_error);
+    ////////////////////////////////////////////////////////////////////
+
 
     std::cout << "lateral command: " << controller.steering_command << std::endl;
 }
@@ -257,16 +284,23 @@ Controller::Controller()
 is_emergency_braking(false), is_spacing_control(false), reverse_count(0), activate_control(false) {
     ego_vehicle_pose_subscriber = nh_.subscribe("/carla/hero/localization", 10, &Controller::pose_sub_callback, this);
     // These topic names are temporary. They will be named appropriately by planner (Ja hyun)
-    vel_ref_subscriber = nh_.subscribe("/carla/hero/global_stop", 10, &Controller::vel_ref_sub_callback, this);
+    //vel_ref_subscriber = nh_.subscribe("/carla/hero/global_stop", 10, &Controller::vel_ref_sub_callback, this); who did it ;;
     actual_vel_subscriber = nh_.subscribe("/carla/hero/Speed", 10, &Controller::actual_vel_callback, this);
     waypoints_subscriber = nh_.subscribe("/carla/hero/my_global_plan", 10, &Controller::waypoints_sub_callback, this);
     preceding_vehicle_dist_subscriber = nh_.subscribe("/carla/hero/preceding_vehicle_distance", 1, &Controller::preceding_vehicle_dist_callback, this);
     control_flag_subscriber = nh_.subscribe("/carla/control_flag", 1, &Controller::control_flag_sub_callback, this);
 
-    AEB_subscriber = nh_.subscribe("/carla/hero/global_stop", 1, &Localizer::AEB_sub_callback, this);
-    ACC_subscriber = nh_.subscribe("/carla/hero/global_ACC", 1, &Localizer::ACC_sub_callback, this);
+    AEB_subscriber = nh_.subscribe("/carla/hero/global_stop", 1, &Controller::AEB_sub_callback, this);
+    ACC_subscriber = nh_.subscribe("/carla/hero/global_ACC", 1, &Controller::ACC_sub_callback, this);
 
     control_cmd_publisher = nh_.advertise<carla_msgs::CarlaEgoVehicleControl>("/carla/hero/vehicle_control_cmd",1);
+
+    //////////////////////////////// j f p e /////////////////////////////////////////
+    ref_speed_publisher = nh_.advertise<std_msgs::Float32>("/carla/hero/ref_speed", 1);
+    actual_speed_publisher = nh_.advertise<std_msgs::Float32>("/carla/hero/actual_speed", 1);
+    XTE_publisher = nh_.advertise<std_msgs::Float32>("/carla/hero/XTE", 1);
+    yaw_error_publisher = nh_.advertise<std_msgs::Float32>("/carla/hero/heading_angle_error", 1);
+    //////////////////////////////////////////////////////////////////////////////////
 
     control_cmd.header.frame_id="/hero";
     control_cmd.hand_brake = false;
@@ -297,6 +331,7 @@ void Controller::publish_command() {
     if (forward_lock_count > 0) {
         forward_lock_count--;
         forward_command();
+
     } else if (back) {
         // Only allow reverse if forward cycles have been maintained
         if (forward_state_count >= 150) { // Ensure some forward cycles
@@ -305,7 +340,7 @@ void Controller::publish_command() {
             }
             std::cout << "--------------------reverse gear----------------------" << std::endl;
             control_cmd.reverse = true;
-            //control_cmd.throttle = 0.5; // Set throttle for reversing
+            control_cmd.throttle = 0.5; // Set throttle for reversing
             control_cmd.brake = 0.0;
             control_cmd.steer = 0.0;
             reverse_count++;
@@ -329,8 +364,30 @@ void Controller::publish_command() {
     }
 
     control_cmd_publisher.publish(control_cmd);
-    std::cout << "---------------wait for new control ----------------" << std::endl;
+    //std::cout << "---------------wait for new control ----------------" << std::endl;
 
     prev_speed = static_cast<double>(actual_vel);
     prev_longitudinal_command = control_cmd.throttle;
 }
+
+
+//////////////////////////////// j f p e ///////////////////////////////
+void Controller::longitudinal_evaluation(float ref_vel, float act_vel) {
+    std_msgs::Float32 ref;
+    ref.data = ref_vel;
+    std_msgs::Float32 act;
+    act.data = act_vel;
+
+    ref_speed_publisher.publish(ref);
+    actual_speed_publisher.publish(act);
+}
+
+void Controller::lateral_evaluation(float xte, float yaw_error) {
+    std_msgs::Float32 XTE;
+    std_msgs::Float32 Yaw_error;
+    XTE.data = xte;
+    Yaw_error.data = yaw_error;
+    XTE_publisher.publish(XTE);
+    yaw_error_publisher.publish(Yaw_error);
+}
+////////////////////////////////////////////////////////////////////////
