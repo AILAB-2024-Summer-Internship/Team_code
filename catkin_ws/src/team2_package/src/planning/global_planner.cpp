@@ -26,7 +26,7 @@ void GlobalPlanner::route_cb(const carla_msgs::CarlaRoute::ConstPtr& msg) {
         options.emplace_back(msg->road_options[i]);
         waypoints.emplace_back(waypoint(static_cast<float>(msg->poses[i].position.x), static_cast<float>(msg->poses[i].position.y)));
     }
-    route_interpolate(waypoints, options);
+    // route_interpolate(waypoints, options);
 }
 
 void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, const std::vector<int>& options) {
@@ -48,44 +48,64 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
         float dy = y2 - y1;
 
         if (option == 3 || option == 4) {
-            bool spline_initialized = false;
-            if (abs(dx) >= 5 && abs(dy) >= 5) { // cubic spline interpolation for curved road
-                tk::spline s;
-                if(abs(dx) >= 190) {
-                    std::vector<double> tempX, tempY;
-                    tempX.reserve(4);
-                    tempY.reserve(4);
+            if (abs(dx) >= 5 && abs(dy) >= 5) { // cubic interpolation for curved road
+                std::vector<Eigen::Vector4f> coeff(3);
+                std::vector<float> x, y;
+                Eigen::Vector3f vdx, delta;
+                Eigen::Vector4f d;
+                x.reserve(4);
+                y.reserve(4);
+                const auto& waypoint3 = waypoints[i + 2];
+                float x3 = waypoint3.x;
+                float y3 = waypoint3.y;
+                int vidx;
 
-                    const auto& waypoint3 = waypoints[i + 2];
-                    float x3 = waypoint3.x;
-                    float y3 = waypoint3.y;
+                if (abs(x3 - x2) >= 50 && abs(y3 - y2) >= 50) {
+                    vidx = 0;
                     const auto& waypoint4 = waypoints[i + 3];
                     float x4 = waypoint4.x;
                     float y4 = waypoint4.y;
+                    x.push_back(x1);
+                    x.push_back(x2);
+                    x.push_back(x3);
+                    x.push_back(x4);
+                    y.push_back(y1);
+                    y.push_back(y2);
+                    y.push_back(y3);
+                    y.push_back(y4);
 
-                    tempX.push_back(x4);
-                    tempX.push_back(x3);
-                    tempX.push_back(x2);
-                    tempX.push_back(x1);
-                    tempY.push_back(y4);
-                    tempY.push_back(y3);
-                    tempY.push_back(y2);
-                    tempY.push_back(y1);
+                    for (int i = 0; i < 3; ++i) {
+                        vdx[i] = x[i + 1] - x[i];
+                        delta[i] = (y[i + 1] - y[i]) / vdx[i];
+                    }
+                
+                    d[0] = delta[0];
+                    d[3] = delta[2];
+                    for (int i = 1; i < 3; ++i) {
+                        if (delta[i - 1] * delta[i] > 0) {
+                            d[i] = 2 / (1 / delta[i - 1] + 1 / delta[i]);
+                        } else {
+                            d[i] = 0;
+                        }
+                    }
 
-                    s.set_points(tempX, tempY);
-                    spline_initialized = true;
-                }
-
-                if (spline_initialized) {
-                    int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 4);
-                    for (int j = 0; j < num_points; j++) {
-                        my_options.push_back(option);
-                        float t = static_cast<float>(j) / num_points;
-                        float ix = x1 + t * dx;
-                        float iy = static_cast<float>(s(ix));
-                        my_waypoints.push_back(waypoint(ix, iy));
+                    for (int i = 0; i < 3; ++i) {
+                        float a = y[i];
+                        float b = d[i];
+                        float c = (3 * delta[i] - 2 * d[i] - d[i + 1]) / vdx[i];
+                        float dd = (d[i] + d[i + 1] - 2 * delta[i]) / (vdx[i] * vdx[i]);
+                        coeff[i] = Eigen::Vector4f(a, b, c, dd);
                     }
                 }
+                int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 4);
+                for (int j = 0; j < num_points; j++) {
+                    my_options.push_back(option);
+                    float t = static_cast<float>(j) / num_points;
+                    float ix = x1 + t * dx;
+                    float iy = coeff[vidx][0] + coeff[vidx][1] * t * dx + coeff[vidx][2] * t * dx * t * dx + coeff[vidx][3] * t * dx * t * dx * t * dx;
+                    my_waypoints.push_back(waypoint(ix, iy));
+                }
+                vidx++;
             } else { // linear interpolation for straight road
                 int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 2);
                 for (int j = 0; j < num_points; j++) {
@@ -155,11 +175,11 @@ void GlobalPlanner::path_publisher() {
     msg.header.stamp = ros::Time::now();
     msg.header.frame_id = "/map";
 
-    size_t size_t = my_options.size();
+    size_t size_t = options.size();
 
     if (idx < size_t) {
-        const auto& waypoint1 = my_waypoints[idx];
-        const auto& waypoint2 = my_waypoints[idx + 1];
+        const auto& waypoint1 = waypoints[idx];
+        const auto& waypoint2 = waypoints[idx + 1];
         float x1 = waypoint1.x;
         float y1 = waypoint1.y;
         float x2 = waypoint2.x;
@@ -187,10 +207,10 @@ void GlobalPlanner::path_publisher() {
         }
     }
 
-    for (int i = 0; i < size_t; i++) {
-        msg.road_options.emplace_back(my_options[idx + i]);
-        msg.x.emplace_back(my_waypoints[idx + i].x);
-        msg.y.emplace_back(my_waypoints[idx + i].y);
+    for (int i = 0; i < endidx; i++) {
+        msg.road_options.emplace_back(options[idx + i]);
+        msg.x.emplace_back(waypoints[idx + i].x);
+        msg.y.emplace_back(waypoints[idx + i].y);
     }
     path_pub.publish(msg);
 }
