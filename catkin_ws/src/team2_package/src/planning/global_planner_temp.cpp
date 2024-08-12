@@ -15,24 +15,25 @@ struct waypoint {
 
 class GlobalPlanner {
 public:
+    GlobalPlanner();
     void route_cb(const carla_msgs::CarlaRoute::ConstPtr& msg);
     void route_interpolate(const std::vector<waypoint>& waypoints, const std::vector<int>& options);
     void save_to_csv(const std::string& filename);
 
 private:
+    ros::NodeHandle nh;
+    ros::Subscriber route_sub;
     std::vector<int> options;
     std::vector<waypoint> waypoints;
     std::vector<int> my_options;
     std::vector<waypoint> my_waypoints;
 
-    const int RESERVE_SIZE = 5000;
+    const int RESERVE_SIZE = 10000;
     const int MY_SIZE = 10000;
 };
 
 GlobalPlanner::GlobalPlanner() {
-    pose_sub = nh.subscribe("/carla/hero/localization", 10, &GlobalPlanner::pose_cb, this);
     route_sub = nh.subscribe("/carla/hero/global_plan", 10, &GlobalPlanner::route_cb, this);
-
     options.reserve(RESERVE_SIZE);
     waypoints.reserve(RESERVE_SIZE);
     my_options.reserve(MY_SIZE);
@@ -46,6 +47,7 @@ void GlobalPlanner::route_cb(const carla_msgs::CarlaRoute::ConstPtr& msg) {
         waypoints.emplace_back(waypoint(static_cast<float>(msg->poses[i].position.x), static_cast<float>(msg->poses[i].position.y)));
     }
     route_interpolate(waypoints, options);
+    save_to_csv("/home/ailab/Desktop/team_code/global_waypoints_team2.csv"); // 데이터가 갱신될 때마다 저장
 }
 
 void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, const std::vector<int>& options) {
@@ -114,16 +116,12 @@ void GlobalPlanner::save_to_csv(const std::string& filename) {
 int main(int argc, char** argv) {
     // ROS 노드 초기화
     ros::init(argc, argv, "global_planner");
-    ros::NodeHandle nh;
 
     // GlobalPlanner 객체 생성
     GlobalPlanner planner;
 
     // ROS 루프 시작
     ros::spin();
-
-    // CSV 파일로 저장
-    planner.save_to_csv("global_waypoints_team2.csv");
 
     return 0;
 }
