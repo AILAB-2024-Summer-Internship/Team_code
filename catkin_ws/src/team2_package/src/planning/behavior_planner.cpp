@@ -1,183 +1,21 @@
 #include "behavior_planner.hpp"
 
-BehaviorPlanner::object::object() : min_y(0.0), min_x(0.0), max_y(0.0), max_x(0.0), v_y(0.0), v_x(0,0) {}
-BehaviorPlanner::object::object(float min_y, float min_x, float max_y, float max_x, float v_y, float v_x) : min_y(min_y), min_x(min_x), max_y(max_y), max_x(max_x), v_y(v_y), v_x(v_x) {}
-
-BehaviorPlanner::BehaviorPlanner() {
-    object_sub = nh.subscribe("/bounding_box", 10, &CollisionCheck::object_cb, this);
-    speed_sub = nh.subscribe("/carla/hero/Speed", 10, &CollisionCheck::speed_cb, this);
-    yaw_sub = nh.subscribe("/carla/hero/localization", 10, &CollisionCheck::yaw_cb, this);
-    steering_angle_sub = nh.subscribe("")
-    road_option_sub = nh.subscribe("/carla/hero/my_global_plan", 10, &CollisionCheck::road_option_cb, this);
-    speed_sub = nh.subscribe("/carla/hero/Speed", 10, &CollisionCheck::speed_cb, this);
-    // local_fin_sub = nh.subscribe("/carla/hero/local_fin", 10, &CollisionCheck::local_fin_cb, this);
-    // traffic_sign_sub = nh.subscrbie("/carla/traffic_sign"), 10, &CollisionCheck::traffic_sign_cb, this);
-    stop_pub = nh.advertise<std_msgs::Bool>("/carla/hero/stop", 10);
-    // local_req_pub = nh.advertise<std_msgs::Bool>("/localplan_request", 10);
-    // acc_speed_pub = nh.advertise<carla_msgs::CarlaSpeedometer>("/localplan_request", 10);
-    objects.reserve(500);
-    maybe.reserve(50);
-}
-
-void CollisionCheck::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg) {
-    objects.clear();
-    size_t size = msg->boxes.size();
-    for (int i = 0; i < size; i++) {
-        float min_y = msg->boxes[i].center.y - (msg->boxes[i].size_y / 2);
-        float min_x = msg->boxes[i].center.x - (msg->boxes[i].size_x / 2);
-        float max_y = msg->boxes[i].center.y + (msg->boxes[i].size_y / 2);
-        float max_x = msg->boxes[i].center.x + (msg->boxes[i].size_x / 2);
-        float v_y = 0.0
-        float v_x = 0.0
-        objects.push_back(object(min_y, min_x, max_y, max_x, v_y, v_x));
-    }
-    object_path_prediction(objects);
-}
-void CollisionCheck::road_option_cb(const team2_package::globalwaypoints::ConstPtr& msg) { //necessary?
-    next_rop = msg->road_options[0];
-    next2_rop = msg->road_options[1];
-}
-void CollisionCheck::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg) {
-    speed = msg->speed;
-}
-// void CollisionCheck::local_fin_cb(const std_msgs::Bool::ConstPtr& msg) {
-//     local_fin = msg->data;
-// }
-
-// void CollisionCheck::traffic_sign_cb(const ::ConstPtr* msg) {}
-
-void CollisionCheck::object_path_prediction(const std::vector<object>& objects) {
-    for(int i = 0; i < objects.size(); i++) {
-        float min_path_y = objects[i].min_y + 3 * v_y;
-        float max_path_y = objects[i].max_y + 3 * v_y;
-        float min_path_x = objects[i].min_x + 3 * v_x;
-        float max_path_x = objects[i].max_x + 3 * v_x;
-        objects_path.push_back(object(min_path_y, max_path_y, min_path_x, min_path_y, v_x, v_y));
-    }
-}
-
-void CollisionCheck::collision_check(const int& next_rop, const int& speed, const std::vector<object>& objects_path) {
-    size_t size = objects_path.size();
-    if (next_rop == 4) {
-        for(int i = 0; i < size; i++) {
-            float leftob = objects[i].max_y;
-            float rightob = objects[i].min_y;
-            float frontob = objects[i].min_x;
-            float vehicle_min_x = 3 * speed + 2.5; // interested in all objects of 3secs later
-
-            if(((2.5 <= frontob && frontob <= vehicle_min_x) && (-1.5 <= rightob && rightob <= 1.5)) ||
-                ((2.5 <= frontob && frontob <= vehicle_min_x) && (-1.5 <= leftob && leftob <= 1.5))) {
-                maybe.push_back(objects[i]);
-            }
-        }
-    } else if (next_rop == 3) {
-
-    } else if (next_rop == 5) {
-        for(int i = 0; i < size; i++) {
-            float leftob = objects[i].max_y;
-            float rightob = objects[i].min_y;
-            float frontob = objects[i].max_x;
-            float vehicle_max_x = 3 * speed + 2.5; // interested in all objects of 3secs later
-
-            if(((2.5 <= frontob && frontob <= vehicle_max_x) && (-1.5 <= rightob && rightob <= 1.5)) ||
-                ((2.5 <= frontob && frontob <= vehicle_max_x) && (-1.5 <= leftob && leftob <= 1.5))) {
-                maybe.push_back(objects[i]);
-            }
-        } 
-    }
-
-
-void CollisionCheck::right_turn(const int& next_rop, const int& next2_rop)  {
-    if (next_rop == 4 && next2_rop == 2) {
-        jcic_stop = true;
-        if(trafficlight_none || green_light) {
-            jcic_stop = false;
-        }
-    }
-}
-
-void CollisionCheck::ACC(const int& next_rop, const int& speed, const std::vector<object>& objects) { // knowing speed of head vehicle, speed info
-    if (nextrop == 3 || next_rop == 4) {
-        for (int i = 0; i < objects.size(); i++) {
-            float leftbd = object[i].min_y;
-            float rightbd = object[i].max_y;
-            float bumper = object[i].min_x;
-            float ACC_x = 3 * speed + 2.5;
-            float AEB_x = 1.5 * speed + 2.5;
-            float 
-            if (-1.5 <= leftob && 1.5 <= rightob) {
-                if (AEB_x <= bumper && bumper <= ACC_x) {
-                    acc = true;
-                } else if (ACC_x <= bumper) {
-                    acc = false;
-                }
-            }
-        }
-    }
-}
-
-void CollisionCheck::AEB(const int& next_rop, const int& speed, const std::vector<object>& maybe) {
-    path_
-}
-
-void CollisionCheck::stop_check() {
-    if (local_plan == false) {
-        object_detect(next_rop, speed, objects);
-        junction_intersection(next_rop, next2_rop);
-        if (object_detected || jcic_stop) {
-            g_stop = true;
-        } else {
-            g_stop = false;
-        }
-    } else {
-        object_detected = false;
-        jcic_stop = false;
-        trafficlight_none = true;
-        green_light = false;
-        g_stop = false;
-    }
-    std::cout << "stop checking" << std::endl;
-}
-
-void CollisionCheck::global_stop_publisher() {
-    stop_check();
-    std_msgs::Bool stopmsg;
-    stopmsg.data = g_stop;
-    stop_pub.publish(stopmsg);
-}
-
-int main(int argc, char** argv) {
-    ros::init(argc, argv, "behavior_planner");
-    CollisionCheck collisioncheck;
-    
-    ros::Rate loop_rate(10);
-    while (ros::ok()) {
-        collisioncheck.global_stop_publisher();
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
-    return 0;
-}
-
-#include "behavior_planner.hpp"
-
 BehaviorPlanner::object::object() : min_y(0.0), min_x(0.0), max_y(0.0), max_x(0.0), v_y(0.0), v_x(0.0) {}
 BehaviorPlanner::object::object(float min_y, float min_x, float max_y, float max_x, float v_y, float v_x) : min_y(min_y), min_x(min_x), max_y(max_y), max_x(max_x), v_y(v_y), v_x(v_x) {}
 
+BehaviorPlanner::waypoint::waypoint() : x(0.0), y(0.0), v(0.0) {}
+BehaviorPlanner::waypoint::waypoint(float x, float y, float speed) : x(x), y(y), speed(speed) {}
+
 BehaviorPlanner::BehaviorPlanner() {
     object_sub = nh.subscribe("/bounding_box", 10, &BehaviorPlanner::object_cb, this);
-    // speed_sub = nh.subscribe("/carla/hero/Speed", 10, &CollisionCheck::speed_cb, this);
-    // yaw_sub = nh.subscribe("/carla/hero/localization", 10, &CollisionCheck::yaw_cb, this);
-    // steering_angle_sub = nh.subscribe("")
-    // road_option_sub = nh.subscribe("/carla/hero/my_global_plan", 10, &CollisionCheck::road_option_cb, this);
+    waypoint_sub = nh.subscribe("/carla/hero/my_global_plan", 10, &BehaviorPlanner::waypoint_cb, this);
     speed_sub = nh.subscribe("/carla/hero/Speed", 10, &BehaviorPlanner::speed_cb, this);
-    // local_fin_sub = nh.subscribe("/carla/hero/local_fin", 10, &CollisionCheck::local_fin_cb, this);
-    // traffic_sign_sub = nh.subscrbie("/carla/traffic_sign"), 10, &CollisionCheck::traffic_sign_cb, this);
+    pose_sub = nh.subscribe("/carla/hero/localization", 10, &CollisionCheck::pose_cb, this);
+    
     AEB_pub = nh.advertise<std_msgs::Bool>("/carla/hero/AEB", 10);
-    // local_req_pub = nh.advertise<std_msgs::Bool>("/localplan_request", 10);
-    // acc_speed_pub = nh.advertise<carla_msgs::CarlaSpeedometer>("/localplan_request", 10);
+
     objects.reserve(500);
-    // maybe.reserve(50);
+    pose.reserve(3);
 }
 
 void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg) {
@@ -192,144 +30,150 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
         float v_x = 0.0;
         objects.push_back(object(min_y, min_x, max_y, max_x, v_y, v_x));
     }
-    // object_prediction(objects);
+    object_prediction(objects);
+    collision_check(objects_predict_3s);
 }
 
-void BehaviorPlanner::collision_check(const std::vector<object>& objects) {
-    size_t size = objects.size();
-    bool AEB_loop;
+void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg) {
+    size_t size = road_options.size();
     for (int i = 0; i < size; i++) {
-        float min_x = objects[i].min_x;
-        float min_y = objects[i].min_y;
-        float max_y = objects[i].max_y;
-        if ((2.9 < min_x && min_x < 2.9 + 1.5 * speed) &&
-        (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
-            AEB = true;
-            return;
-        } else {
-            AEB_loop = false;
-        }
+        waypoints[i].x = msg->x[i];
+        waypoints[i].y = msg->y[i];
+        waypoints[i].speed = 0.0;
     }
-    AEB = AEB_loop;
+    road_option = road_options[0];
+    ego_prediction(waypoints, pose);
 }
 
-// void CollisionCheck::pose_cb(const team2_package::vehicle_state::ConstPtr& msg) {
-//     pose[0] = msg->x;
-//     pose[1] = msg->y;
-// }
-// void CollisionCheck::road_option_cb(const team2_package::globalwaypoints::ConstPtr& msg) { //necessary?
-//     next_rop = msg->road_options[0];
-//     next2_rop = msg->road_options[1];
-// }
+void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg) {
+    pose[0] = msg->x;
+    pose[1] = msg->y;
+    pose[2] = msg->yaw;
+}
+
 void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg) {
     speed = msg->speed;
 }
-// void CollisionCheck::local_fin_cb(const std_msgs::Bool::ConstPtr& msg) {
-//     local_fin = msg->data;
-// }
 
-// void CollisionCheck::traffic_sign_cb(const ::ConstPtr* msg) {}
+void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
+    for(int i = 0; i < objects.size(); i++) {
+        std::vector<object> predict_3s;
+        predict_3s.reserve(10);
+        for(int j = 0; j < 10; j++) {
+            float min_path_y = objects[i].min_y + 0.3 * j * objects[i].v_y;
+            float max_path_y = objects[i].max_y + 0.3 * j * objects[i].v_y;
+            float min_path_x = objects[i].min_x + 0.3 * j * objects[i].v_x;
+            float max_path_x = objects[i].max_x + 0.3 * j * objects[i].v_x;
+            predict_3s.push_back(object(min_path_y, max_path_y, min_path_x, min_path_y, 0, 0));
+        }
+        objects_predict_3s.emplace_back(predict_3s);
+    }
+}
 
-// void CollisionCheck::object_prediction(const std::vector<object>& objects) {
-//     for(int i = 0; i < objects.size(); i++) {
-//         std::vector<object> predict_3s;
-//         predict_3s.reserve(10);
-//         for(int j = 0; j < 10; j++) {
-//             float min_path_y = objects[i].min_y + 0.3 * j * objects[i].v_y;
-//             float max_path_y = objects[i].max_y + 0.3 * j * objects[i].v_y;
-//             float min_path_x = objects[i].min_x + 0.3 * j * objects[i].v_x;
-//             float max_path_x = objects[i].max_x + 0.3 * j * objects[i].v_x;
-//             predict_3s.push_back(object(min_path_y, max_path_y, min_path_x, min_path_y, 0, 0));
-//         }
-//         objects_predict_3s.emplace_back(predict_3s);
-//     }
-// }
+void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const int& speed) {
+    size_t size = waypoints.size();
+    for (int i = 0; i < size - 2; i++) {
+        float x1 = (waypoints[i].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
+        float y1 = (waypoints[i].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
+        float x2 = (waypoints[i+1].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+1].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
+        float y2 = (waypoints[i+1].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+1].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
+        float x3 = (waypoints[i+2].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+2].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
+        float y3 = (waypoints[i+2].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+2].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
+        float dxdy1 = (x2 - x1) / (y2 - y1);
+        float dxdy2 = (x3 - x2) / (y3 - y2);
+        float curvature = (dxdy2-dxdy1) / std::pow((1 + dxdy1*dxdy1),1.5);
+        float max_speed;
+        if (curvature < 0.000001) {
+            max_speed = std::sqrt(0.5 * 9.81 * (1 / curvature));
+        } else {
+            max_speed = 15;
+        }
+        waypoints_conv.push_back(waypoint(x1,y1,max_speed));
+    }
+    size_t size_conv = waypoints_conv.size();
+    const auto& waypoint0 = waypoint_conv[0];
+    float x0 = waypoint0.x;
+    float y0 = waypoint0.y;
+    float distance0 = std::sqrt(std::pow(x0,2) + std::pow(y0,2));
+    int cnt = 10;
+    int cnt0 = static_cast<int>(distance0 / speed * 0.3);
+    for (int n = 0; n < cnt0; n++) {
+        float min_y = y0 / distance0 * 0.3 * n - 0.95;
+        float min_x = x0 / distance0 * 0.3 * n - 2.48;
+        float max_y = y0 / distance0 * 0.3 * n + 0.95;
+        float max_x = x0 / distance0 * 0.3 * n + 2.48;
+        float min_y = y0 / distance0 * 0.3 * n - 0.95;
+        float min_x = x0 / distance0 * 0.3 * n - 2.48;
+        float max_y = y0 / distance0 * 0.3 * n + 0.95;
+        float max_x = x0 / distance0 * 0.3 * n + 2.48;
+        float v_y = 0.0;
+        float v_x = 0.0;
+        ego_predict_3s.push_back(object(min_y, min_x, max_y, max_x, v_y, v_x));
+        cnt -= 1;
+        if (cnt < 0) {
+            return;
+        }
+    }
+    for (int i = 0; i < size_conv; i++) {
+        const auto& waypoint1 = waypoints_conv[i];
+        const auto& waypoint2 = waypoints_conv[i+1];
+        float x1 = waypoint1.x;
+        float x2 = waypoint2.x;
+        float y1 = waypoint1.y;
+        float y2 = waypoint2.y;
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+        float max_speed1 = waypoint1.max_speed;
+        float distance = std::sqrt(std::pow(dx,2) + std::pow(dy,2));
+        float theta = atanf(dy / dx) - 90;
+        if (max_speed1 > speed && speed > 0) {
+            int cnt00 = static_cast<int>(distance / speed * 0.3);
+            for(int j = 0; j < cnt00; j++) {
+                float min_y = dy / distance0 * 0.3 * n - 0.95 + y1;
+                float min_x = dx / distance0 * 0.3 * n - 2.48 + x1;
+                float max_y = dy / distance0 * 0.3 * n + 0.95 + y1;
+                float max_x = dx / distance0 * 0.3 * n + 2.48 + y2;
+                float r_min_y = min_y * cos(theta) - min_x * sin(theta);
+                float r_min_x = max_y * sin(theta) + min_x * cos(theta);
+                float r_max_y = max_y * cos(theta) - max_x * sin(theta);
+                float r_max_x = min_y * sin(theta) + max_x * cos(theta); 
+                float v_y = 0.0;
+                float v_x = 0.0;
+                ego_predict_3s.push_back(object(r_min_y, r_min_x, r_max_y, r_max_x, v_y, v_x));
+                cnt -= 1;
+                if (cnt < 1) {
+                    return;
+                }
+            }
+        } else {
+            int cnt00 = static_cast<int>(distance / max_speed1 * 0.3);
+            for(int j = 0; j < cnt00; j++) {
+                float min_y = dy / distance0 * 0.3 * n - 0.95 + y1;
+                float min_x = dx / distance0 * 0.3 * n - 2.48 + x1;
+                float max_y = dy / distance0 * 0.3 * n + 0.95 + y1;
+                float max_x = dx / distance0 * 0.3 * n + 2.48 + y2;
+                float r_min_y = min_y * cos(theta) - min_x * sin(theta);
+                float r_min_x = max_y * sin(theta) + min_x * cos(theta);
+                float r_max_y = max_y * cos(theta) - max_x * sin(theta);
+                float r_max_x = min_y * sin(theta) + max_x * cos(theta); 
+                float v_y = 0.0;
+                float v_x = 0.0;
+                ego_predict_3s.push_back(object(r_min_y, r_min_x, r_max_y, r_max_x, v_y, v_x));
+                cnt -= 1;
+                if (cnt < 1) {
+                    return;
+                }
+            }
+        }
+    }
+}
 
-// void CollisionCheck::collision_check(const int& next_rop, const int& speed, const std::vector<object>& objects_path) {
-//     size_t size = objects_path.size();
-//     if (next_rop == 4) {
-//         for(int i = 0; i < size; i++) {
-//             float leftob = objects[i].max_y;
-//             float rightob = objects[i].min_y;
-//             float frontob = objects[i].min_x;
-//             float vehicle_min_x = 3 * speed + 2.5; // interested in all objects of 3secs later
-
-//             if(((2.5 <= frontob && frontob <= vehicle_min_x) && (-1.5 <= rightob && rightob <= 1.5)) ||
-//                 ((2.5 <= frontob && frontob <= vehicle_min_x) && (-1.5 <= leftob && leftob <= 1.5))) {
-//                 maybe.push_back(objects[i]);
-//             }
-//         }
-//     } else if (next_rop == 3) {
-
-//     } else if (next_rop == 5) {
-//         for(int i = 0; i < size; i++) {
-//             float leftob = objects[i].max_y;
-//             float rightob = objects[i].min_y;
-//             float frontob = objects[i].max_x;
-//             float vehicle_max_x = 3 * speed + 2.5; // interested in all objects of 3secs later
-
-//             if(((2.5 <= frontob && frontob <= vehicle_max_x) && (-1.5 <= rightob && rightob <= 1.5)) ||
-//                 ((2.5 <= frontob && frontob <= vehicle_max_x) && (-1.5 <= leftob && leftob <= 1.5))) {
-//                 maybe.push_back(objects[i]);
-//             }
-//         } 
-//     }
-
-
-// void CollisionCheck::right_turn(const int& next_rop, const int& next2_rop)  {
-//     if (next_rop == 4 && next2_rop == 2) {
-//         jcic_stop = true;
-//         if(trafficlight_none || green_light) {
-//             jcic_stop = false;
-//         }
-//     }
-// }
-
-// void CollisionCheck::ACC(const int& next_rop, const int& speed, const std::vector<object>& objects) { // knowing speed of head vehicle, speed info
-//     if (nextrop == 3 || next_rop == 4) {
-//         for (int i = 0; i < objects.size(); i++) {
-//             float leftbd = object[i].min_y;
-//             float rightbd = object[i].max_y;
-//             float bumper = object[i].min_x;
-//             float ACC_x = 3 * speed + 2.5;
-//             float AEB_x = 1.5 * speed + 2.5;
-//             float 
-//             if (-1.5 <= leftob && 1.5 <= rightob) {
-//                 if (AEB_x <= bumper && bumper <= ACC_x) {
-//                     acc = true;
-//                 } else if (ACC_x <= bumper) {
-//                     acc = false;
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// void CollisionCheck::AEB(const int& next_rop, const int& speed, const std::vector<object>& maybe) {
-//     path_
-// }
-
-// void CollisionCheck::stop_check() {
-//     if (local_plan == false) {
-//         object_detect(next_rop, speed, objects);
-//         junction_intersection(next_rop, next2_rop);
-//         if (object_detected || jcic_stop) {
-//             g_stop = true;
-//         } else {
-//             g_stop = false;
-//         }
-//     } else {
-//         object_detected = false;
-//         jcic_stop = false;
-//         trafficlight_none = true;
-//         green_light = false;
-//         g_stop = false;
-//     }
-//     std::cout << "stop checking" << std::endl;
-// }
+void BehaviorPlanner::collision_check() {
+    ego max x > target min x
+    &&(ego max y>min y || min y < max y)
+}
 
 void BehaviorPlanner::publisher() {
-    collision_check(objects);
     std_msgs::Bool msg;
     msg.data = AEB;
     AEB_pub.publish(msg);
