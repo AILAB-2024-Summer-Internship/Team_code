@@ -86,7 +86,7 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
         if (curvature < 0.000001) {
             max_speed = std::sqrt(0.5 * 9.81 * (1 / curvature));
         } else {
-            max_speed = 15;
+            max_speed = 10;
         }
         waypoints_conv.push_back(waypoint(x1,y1,max_speed));
     }
@@ -168,9 +168,19 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
     }
 }
 
-void BehaviorPlanner::collision_check() {
-    ego max x > target min x
-    &&(ego max y>min y || min y < max y)
+void BehaviorPlanner::collision_check(const std::vector<object>& objects_predict_3s, const std::vector<object>& ego_predict_3s) {
+    for (int i = 0; i < 10; i++) {
+        if ((((ego_predict_3s[i].max_x > objects_predict_3s[i].min_x) && (ego_predict_3s[i].max_x < objects_predict_3s[i].max_x)) 
+            || ((ego_predict_3s[i].min_x < objects_predict_3s[i].max_x) && (ego_predict_3s[i].min_x > objects_predict_3s[i].min_x))) &&
+            (((ego_predict_3s[i].max_y > objects_predict_3s[i].min_y) && (ego_predict_3s[i].max_y < objects_predict_3s[i].max_y)) 
+            || ((ego_predict_3s[i].min_y < objects_predict_3s[i].max_y) && (ego_predict_3s[i].min_y > objects_predict_3s[i].min_y)))) {
+                if (0 <= i && i <= 5) {
+                    ref_speed = 0;
+                } else if (i > 5) {
+                    ref_speed = 5;
+                }
+            }
+    }
 }
 
 void BehaviorPlanner::publisher() {
