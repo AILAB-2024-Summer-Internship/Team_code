@@ -70,78 +70,118 @@ void GlobalPlanner::route_interpolate(const std::vector<waypoint>& waypoints, co
         float y2 = waypoint2.y;
         float dx = x2 - x1;
         float dy = y2 - y1;
-        if ((x1 == x2) && (y1 == y2)) {
+        if (i = 0) {
+        float d = std::sqrt(dx * dx + dy * dy);
+        float alpha = 2 * atanf(dy / dx);
+        auto cubic_length = [](float t) {
+            float angle = alpha * (1.5 - 2 * t * t) * t * M_PI / 180;
+            return cos(angle);
+        }
+        float sum = 0.5 * cubic_length(0.5);
+        for (int i = 1; i < 1000; ++i) {
+            float x = i * 0.5 / 1000;
+            sum += cubic_length(x);
+        }
+        float l = d / (2 * sum * 0.5 / 1000);
+        auto theta = [](float tt) {
+            float theta_t = 6 * alpha * (l *tt*tt / 2 - tt*tt*tt / 3) / l*l*l;
+            return theta_t;
+        }
+        float sum_x = 0.5 * cos(theta(0.25 * l));
+        for (int i = 1; i < 1000; ++i) {
+            float x = i * 0.25 / 1000;
+            sum_x += cos(theta(x));
+        }
+        float sum_y= 0.5 * cos(theta(0.25 * l));
+        for (int i = 1; i < 1000; ++i) {
+            float y = i * 0.25 / 1000;
+            sum_y += sin(theta(y));
+        }
+        float mid_x1 = x1 + (sum_x * 0.25 / 1000);
+        float mid_y1 = y1 + (sum_y * 0.25 / 1000);
+        float mid_x2 = (x1 + x2) / 2;
+        float mid_y2 = (y1 + y2) / 2;
+        float mid_x3 = 2 * mid_x2 - mid_x1;
+        float mid_y3 = 2 * mid_y2 - mid_y1;
+        float x2x3 = (x2 + x3) / 2;
+        float y2y3 = (y2 + y3) / 2;
+        for (int i = 0; j < 4; j++) {
+            my_options.push_back(option);
+        }
+        my_waypoints.push_back(waypoint(x1, y1));
+        my_waypoints.push_back(waypoint(mid_x1, mid_y1));
+        my_waypoints.push_back(waypoint(mid_x2, mid_y2));
+        my_waypoints.push_back(waypoint(mid_x3, mid_y3));
         } else {
-            if (option == 3 || option == 4) {
-                int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 2);
-                if (num_points > 1) {
-                    for (int j = 0; j < num_points; j++) {
+            if ((x1 == x2) && (y1 == y2)) {
+            } else {
+                if (option == 3 || option == 4) {
+                    int num_points = static_cast<int>((std::sqrt(dx * dx + dy * dy)) / 2);
+                    if (num_points > 1) {
+                        for (int j = 0; j < num_points; j++) {
+                            my_options.push_back(option);
+                            float t = static_cast<float>(j) / num_points;
+                            float ix = x1 + t * dx;
+                            float iy = y1 + t * dy;
+                            my_waypoints.push_back(waypoint(ix, iy));
+                        }
+                    } else {
                         my_options.push_back(option);
-                        float t = static_cast<float>(j) / num_points;
-                        float ix = x1 + t * dx;
-                        float iy = y1 + t * dy;
-                        my_waypoints.push_back(waypoint(ix, iy));
+                        my_waypoints.push_back(waypoint(x1, y1));
                     }
-                } else {
+                } else if (option == 5 || option == 6) {
+                    const auto& waypoint3 = waypoints[i + 2];
+                    float x3 = waypoint3.x;
+                    float y3 = waypoint3.y;
+                    float d = std::sqrt(dx * dx + dy * dy);
+                    float alpha = 2 * atanf(dy / dx);
+                    auto cubic_length = [](float t) {
+                        float angle = alpha * (1.5 - 2 * t * t) * t * M_PI / 180;
+                        return cos(angle);
+                    }
+                    float sum = 0.5 * cubic_length(0.5);
+                    for (int i = 1; i < 1000; ++i) {
+                        float x = i * 0.5 / 1000;
+                        sum += cubic_length(x);
+                    }
+                    float l = d / (2 * sum * 0.5 / 1000);
+                    auto theta = [](float tt) {
+                        float theta_t = 6 * alpha * (l *tt*tt / 2 - tt*tt*tt / 3) / l*l*l;
+                        return theta_t;
+                    }
+                    float sum_x = 0.5 * cos(theta(0.25 * l));
+                    for (int i = 1; i < 1000; ++i) {
+                        float x = i * 0.25 / 1000;
+                        sum_x += cos(theta(x));
+                    }
+                    float sum_y= 0.5 * cos(theta(0.25 * l));
+                    for (int i = 1; i < 1000; ++i) {
+                        float y = i * 0.25 / 1000;
+                        sum_y += sin(theta(y));
+                    }
+                    float mid_x1 = x1 + (sum_x * 0.25 / 1000);
+                    float mid_y1 = y1 + (sum_y * 0.25 / 1000);
+                    float mid_x2 = (x1 + x2) / 2;
+                    float mid_y2 = (y1 + y2) / 2;
+                    float mid_x3 = 2 * mid_x2 - mid_x1;
+                    float mid_y3 = 2 * mid_y2 - mid_y1;
+                    float x2x3 = (x2 + x3) / 2;
+                    float y2y3 = (y2 + y3) / 2;
+                    for (int i = 0; j < 5; j++) {
+                        my_options.push_back(option);
+                    }
+                    my_options.push_back(4);
+                    my_waypoints.push_back(waypoint(x1, y1));
+                    my_waypoints.push_back(waypoint(mid_x1, mid_y1));
+                    my_waypoints.push_back(waypoint(mid_x2, mid_y2));
+                    my_waypoints.push_back(waypoint(mid_x3, mid_y3));
+                    my_waypoints.push_back(waypoint(x2, y2));
+                    my_waypoints.push_back(waypoint(x2x3, y2y3));
+                    i++;
+                }else {
                     my_options.push_back(option);
                     my_waypoints.push_back(waypoint(x1, y1));
                 }
-            } else if (option == 5 || option == 6) { // cubic spiral로 보간하기
-                const auto& waypoint3 = waypoints[i + 2];
-                float x3 = waypoint3.x;
-                float y3 = waypoint3.y;
-                float ix, iy;
-                float dx2 = x3-x2;
-                float dy2 = y3-y2;
-                float mid_point_x, mid_point_y;
-                std::vector<double> tempX, tempY;
-                tempX.reserve(3);
-                tempY.reserve(3);
-                mid_point_x = (x2 + x1) * 0.5;
-                mid_point_y = (y2 + y1) * 0.5;
-                if (x1 < x2) {
-                    tempX.push_back(x1);
-                    tempX.push_back(mid_point_x);
-                    tempX.push_back(x2);
-                    tempY.push_back(y1);
-                    tempY.push_back(mid_point_y);
-                    tempY.push_back(y2);
-                } else {
-                    tempX.push_back(x2);
-                    tempX.push_back(mid_point_x);
-                    tempX.push_back(x1);
-                    tempY.push_back(y2);
-                    tempY.push_back(mid_point_y);
-                    tempY.push_back(y1);
-                }
-
-                tk::spline s(tempX, tempY);
-                float xm_1 = (x1 + mid_point_x) / 2;
-                float ym_1 = static_cast<float>(s(xm_1));
-                float xm_2 = (x2 + mid_point_x) / 2;
-                float ym_2 = static_cast<float>(s(xm_2));
-                for (int j = 0; j < 5; j++) {
-                    my_options.push_back(option);
-                }
-                my_waypoints.push_back(waypoint(x1, y1));
-                my_waypoints.push_back(waypoint(xm_1, ym_1));
-                my_waypoints.push_back(waypoint(mid_point_x, mid_point_y));
-                my_waypoints.push_back(waypoint(xm_2, ym_2));
-                my_waypoints.push_back(waypoint(x2, y2));
-                int num_points = static_cast<int>((std::sqrt(dx2 * dx2 + dy2 * dy2)) / 2);
-                if (num_points > 1) {
-                    for (int j = 0; j < num_points; j++) {
-                        my_options.push_back(4);
-                        float t = static_cast<float>(j) / num_points;
-                        float ix = x2 + t * dx;
-                        float iy = y2 + t * dy;
-                        my_waypoints.push_back(waypoint(ix, iy));
-                    }
-                }
-                i++;
-            }else {
-                my_options.push_back(option);
-                my_waypoints.push_back(waypoint(x1, y1));
             }
         }
     }
