@@ -1,52 +1,64 @@
 #include <ros/ros.h>
 #include <vector>
-#include "carla_msgs/CarlaSpeedometer.h"
-#include "vision_msgs/BoundingBox2DArray.h"
-#include "team2_package/globalwaypoints.h"
-#include "std_msgs/Bool.h"
+#include <cmath>
+#include "vision_msgs/BoundingBox2DArray.h" // prediction
+#include "team2_package/globalwaypoints.h" // collision check
+#include "carla_msgs/CarlaSpeedometer.h" 
+#include "team2_package/vehicle_state.h"
+#include "std_msgs/Bool.h" // AEB
 
-class CollisionCheck{
+class BehaviorPlanner{
   public:
     struct object{ // vertical y, horizontal x 
         float min_y;
         float min_x;
         float max_y;
         float max_x;
+        float v_y;
+        float v_x;
 
         object();
-        object(float min_y, float min_x, float max_y, float max_x);
+        object(float min_y, float min_x, float max_y, float max_x, float v_y, float v_x);
     };
 
-    int next_rop;
-    int next2_rop;
-    float speed;
-    bool object_detected = false;
-    bool jcic_stop = false;
-    bool trafficlight_none = true;
-    bool green_light = true;
-    bool local_plan = false;
-    bool g_stop = false;
+    struct waypoint {
+      float x;
+      float y;
+      float speed;
+      
+      waypoint();
+      waypoint(float x, float y, float speed);
+    };
 
-    CollisionCheck();
+    BehaviorPlanner();
 
     void object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg);
-    void road_option_cb(const team2_package::globalwaypoints::ConstPtr& msg);
+    // void waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg);
     void speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg);
-    void localplan_cb(const std_msgs::Bool::ConstPtr& msg);
-    // void traffic_sign_cb(const ::ConstPtr& msg);
+    // void pose_cb(const team2_package::vehicle_state::ConstPtr& msg);
 
-    void object_detect(const int& next_rop, const int& speed, const std::vector<object>& objects);
-    void junction_intersection(const int& next_rop, const int& next2_rop);
-    void stop_check();
-    void global_stop_publisher();
+    // void prediction(const std::vector<object>& objects);
+    // void collision_check(const std::vector<object>& objects, const std::vector<float>& pose, const int& speed, const std::vector<waypoint>& waypoints);
+    void collision_check(const std::vector<object>& objects);
+    void publisher();
 
   private:
     ros::NodeHandle nh;
     ros::Subscriber object_sub;
-    ros::Subscriber road_option_sub;
+    ros::Subscriber waypoint_sub;
     ros::Subscriber speed_sub;
-    ros::Publisher stop_pub;
-    // ros::Publisher activate_lp_pub;
+    ros::Subscriber pose_sub;
+
+    ros::Publisher AEB_pub;
 
     std::vector<object> objects;
+    std::vector<waypoint> waypoints;
+    std::vector<float> pose;
+    std::vector<object> objects_predict_3s;
+    std::vector<waypoint> waypoints_conv;
+    std::vector<object> ego_predict_3s;
+
+    float speed;
+    bool AEB;
+    int road_option;
 };
