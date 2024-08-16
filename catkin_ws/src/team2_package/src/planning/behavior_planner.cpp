@@ -18,10 +18,10 @@ BehaviorPlanner::BehaviorPlanner() {
     // yolo_sub = nh.subscribe("", 10, &BehaviorPlanner::yolo_cb, this);
     
     AEB_pub = nh.advertise<std_msgs::Bool>("/carla/hero/AEB", 10);
-    ref_speed_pub = nh.advertise<std_msgs::Float32>("/carla/hero/ref_speed", 10);
-    ACC_pub = nh.advertise<std_msgs::Bool>("/carla/hero/ACC", 10);
-    distance_pub = nh.advertise<std_msgs::Float32>("/carla/hero/ACC_dist", 10);
-    waypoints_pub = nh.advertise<team2_package::globalwaypoints>("waypoints", 10);
+    // ref_speed_pub = nh.advertise<std_msgs::Float32>("/carla/hero/ref_speed", 10);
+    // ACC_pub = nh.advertise<std_msgs::Bool>("/carla/hero/ACC", 10);
+    // distance_pub = nh.advertise<std_msgs::Float32>("/carla/hero/ACC_dist", 10);
+    // waypoints_pub = nh.advertise<team2_package::globalwaypoints>("waypoints", 10);
 
     objects.reserve(500);
     pose.reserve(3);
@@ -45,13 +45,13 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
 }
 
 void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg) {
-    size_t size = road_options.size();
+    size_t size = msg->road_options.size();
     for (int i = 0; i < size; i++) {
         waypoints[i].x = msg->x[i];
         waypoints[i].y = msg->y[i];
         waypoints[i].speed = 0.0;
     }
-    road_option = road_options[0];
+    road_option = msg->road_options[0];
     ego_prediction(waypoints, pose, speed);
 }
 
@@ -74,7 +74,7 @@ void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
             float max_path_y = objects[i].max_y + 0.3 * j * objects[i].v_y;
             float min_path_x = objects[i].min_x + 0.3 * j * objects[i].v_x;
             float max_path_x = objects[i].max_x + 0.3 * j * objects[i].v_x;
-            predict_3s.push_back(object(min_path_y, max_path_y, min_path_x, min_path_y, 0, 0));
+            predict_3s.push_back(object(min_path_y, max_path_y, min_path_x, max_path_x, 0, 0));
         }
         objects_predict_3s.emplace_back(predict_3s);
     }
@@ -83,12 +83,19 @@ void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
 void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const int& speed) {
     size_t size = waypoints.size();
     for (int i = 0; i < size - 2; i++) {
-        float x1 = (waypoints[i].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
-        float y1 = (waypoints[i].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
-        float x2 = (waypoints[i+1].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+1].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
-        float y2 = (waypoints[i+1].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+1].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
-        float x3 = (waypoints[i+2].x-pose[0])*cos((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+2].y-pose[1])*sin((pose[2]-1.5492) * 180 / M_PI);
-        float y3 = (waypoints[i+2].x-pose[0])*sin((pose[2]-1.5492) * 180 / M_PI) - (waypoints[i+2].y-pose[1])*cos((pose[2]-1.5492) * 180 / M_PI);
+        float theta = pose[2];
+        float dx1 = waypoints[i].x-pose[0];
+        float dy1 = waypoints[i].y-pose[1];
+        float dx2 = waypoints[i+1].x-pose[0];
+        float dy2 = waypoints[i+1].y-pose[1];
+        float dx3 = waypoints[i+2].x-pose[0];
+        float dy3 = waypoints[i+2].y-pose[1];
+        float x1 = dx1 * cos(theta) + dy1 * sin(theta);
+        float y1 = -dx1 * sin(theta) + dy1 * cos(theta);
+        float x2 = dx2 * cos(theta) + dy2 * sin(theta);
+        float y2 = -dx2 * sin(theta) + dy2 * cos(theta);
+        float x3 = dx3 * cos(theta) + dy3 * sin(theta);
+        float y3 = -dx3 * sin(theta) + dy3 * cos(theta);
         float dxdy1 = (x2 - x1) / (y2 - y1);
         float dxdy2 = (x3 - x2) / (y3 - y2);
         float curvature = (dxdy2-dxdy1) / std::pow((1 + dxdy1*dxdy1),1.5);
@@ -99,6 +106,10 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
             max_speed = 10;
         }
         waypoints_conv.push_back(waypoint(x1,y1,max_speed));
+        if (i == 7) {
+            waypoints_conv.push_back(waypoint(x2,y2,max_speed));
+            waypoints_conv.push_back(waypoint(x3,y3,max_speed));
+        }
     }
     size_t size_conv = waypoints_conv.size();
     const auto& waypoint0 = waypoints_conv[0];
@@ -108,10 +119,6 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
     int cnt = 10;
     int cnt0 = static_cast<int>(distance0 / speed * 0.3);
     for (int n = 0; n < cnt0; n++) {
-        float min_y = y0 / distance0 * 0.3 * n - 0.95;
-        float min_x = x0 / distance0 * 0.3 * n - 2.48;
-        float max_y = y0 / distance0 * 0.3 * n + 0.95;
-        float max_x = x0 / distance0 * 0.3 * n + 2.48;
         float min_y = y0 / distance0 * 0.3 * n - 0.95;
         float min_x = x0 / distance0 * 0.3 * n - 2.48;
         float max_y = y0 / distance0 * 0.3 * n + 0.95;
@@ -135,7 +142,7 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
         float dy = y2 - y1;
         float max_speed1 = waypoint1.speed;
         float distance = std::sqrt(std::pow(dx,2) + std::pow(dy,2));
-        float theta = atanf(dy / dx) - 90;
+        float theta = atanf(dx / dy) - 90;
         if (max_speed1 > speed && speed > 0) {
             int cnt00 = static_cast<int>(distance / speed * 0.3);
             for(int j = 0; j < cnt00; j++) {
@@ -178,20 +185,25 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
     }
 }
 
-void BehaviorPlanner::collision_check(const std::vector<object>& objects_predict_3s, const std::vector<object>& ego_predict_3s) {
+void BehaviorPlanner::collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s) {
+    size_t size = objects_predict_3s.size();
     bool brake = false;
     bool slow_down_loop = false;
-    for (int i = 0; i < 10; i++) {
-        if ((((ego_predict_3s[i].max_x > objects_predict_3s[i].min_x) && (ego_predict_3s[i].max_x < objects_predict_3s[i].max_x)) 
-            || ((ego_predict_3s[i].min_x < objects_predict_3s[i].max_x) && (ego_predict_3s[i].min_x > objects_predict_3s[i].min_x))) &&
-            (((ego_predict_3s[i].max_y > objects_predict_3s[i].min_y) && (ego_predict_3s[i].max_y < objects_predict_3s[i].max_y)) 
-            || ((ego_predict_3s[i].min_y < objects_predict_3s[i].max_y) && (ego_predict_3s[i].min_y > objects_predict_3s[i].min_y)))) {
-                if (i <= 5) {
-                    brake = true;
-                } else if (i > 5) {
-                    slow_down_loop = true;
+    for (int i = 0; i < size; i++) {
+        for(int j = 0; j < 10; j++) {
+            if ((((ego_predict_3s[j].max_x > objects_predict_3s[i][j].min_x) && (ego_predict_3s[j].max_x < objects_predict_3s[i][j].max_x)) 
+                || ((ego_predict_3s[j].min_x < objects_predict_3s[i][j].max_x) && (ego_predict_3s[j].min_x > objects_predict_3s[i][j].min_x))) &&
+                (((ego_predict_3s[j].max_y > objects_predict_3s[i][j].min_y) && (ego_predict_3s[j].max_y < objects_predict_3s[i][j].max_y)) 
+                || ((ego_predict_3s[j].min_y < objects_predict_3s[i][j].max_y) && (ego_predict_3s[j].min_y > objects_predict_3s[i][j].min_y)))) {
+                    if (i <= 5) {
+                        brake = true;
+                        break;
+                    } else if (i > 5) {
+                        slow_down_loop = true;
+                        break;
+                    }
                 }
-            }
+        }
     }
     if (brake) {
         AEB = true;
@@ -248,36 +260,36 @@ void BehaviorPlanner::speed_profiling(const std::vector<waypoint>& waypoints_con
     }
 }
 
-void BehaviorPlanner::local_planner(const int& road_option, const std::vector<object>& objects) {
-    if (road_option == 4) {
-        size_t size = objects.size();
-        for (int i = 0; i < size; i++) {
-            float min_x = objects[i].min_x;
-            float min_y = objects[i].min_y;
-            float max_y = objects[i].max_y;
-            float v_x = objects[i].v_x;
-            if ((2.50 < min_x && min_x < 2.55 + 3 * speed) &&
-            (v_x == 0) && (1.5 > min_y && max_y > 1.5)) {
+// void BehaviorPlanner::local_planner(const int& road_option, const std::vector<object>& objects) {
+//     if (road_option == 4) {
+//         size_t size = objects.size();
+//         for (int i = 0; i < size; i++) {
+//             float min_x = objects[i].min_x;
+//             float min_y = objects[i].min_y;
+//             float max_y = objects[i].max_y;
+//             float v_x = objects[i].v_x;
+//             if ((2.50 < min_x && min_x < 2.55 + 3 * speed) &&
+//             (v_x == 0) && (1.5 > min_y && max_y > 1.5)) {
                 
-            }
-        }
-    }
-}
+//             }
+//         }
+//     }
+// }
 
 void BehaviorPlanner::publisher() {
     std_msgs::Bool msg;
     msg.data = AEB;
-    std::msgs::Bool msg2;
-    msg2.data = ACC;
-    if (local_planning) {
-        waypoints_pub.publish(local_waypoints);
-    } else {
-        waypoints_pub.publish(global_waypoints);
-    }
+    // std_msgs::Bool msg2;
+    // msg2.data = ACC;
+    // if (local_planning) {
+    //     waypoints_pub.publish(local_waypoints);
+    // } else {
+    //     waypoints_pub.publish(global_waypoints);
+    // }
     AEB_pub.publish(msg);
-    ACC_pub.publish(msg2);
-    ref_speed_pub.publish(speed);
-    distance_pub.publish(distance);
+    // ACC_pub.publish(msg2);
+    // ref_speed_pub.publish(speed);
+    // distance_pub.publish(distance);
 }
 
 int main(int argc, char** argv) {
