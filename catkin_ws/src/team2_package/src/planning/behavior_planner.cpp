@@ -32,7 +32,7 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
     }
     if (size != 0) {
     // object_prediction(objects);
-        collision_check(objects);
+        collision_check(objects, speed);
     }
 }
 
@@ -74,14 +74,15 @@ void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg
 //     float my_x = 
 // }
 
-void BehaviorPlanner::collision_check(const std::vector<object>& objects) {
+void BehaviorPlanner::collision_check(const std::vector<object>& objects, const float& speed) {
     size_t size = objects.size();
     bool AEB_loop = false;
     for (int i = 0; i < size; i++) {
         float min_x = objects[i].min_x;
         float min_y = objects[i].min_y;
         float max_y = objects[i].max_y;
-
+    if (speed < 1) {
+        
         if ((2.50 < min_x && min_x < 2.70 + 1.5 * speed) &&
         (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
             AEB_loop = true;
