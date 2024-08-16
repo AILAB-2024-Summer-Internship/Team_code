@@ -81,7 +81,8 @@ void BehaviorPlanner::collision_check(const std::vector<object>& objects) {
         float min_x = objects[i].min_x;
         float min_y = objects[i].min_y;
         float max_y = objects[i].max_y;
-        if ((2.50 < min_x && min_x < 2.55 + 1.5 * speed) &&
+
+        if ((2.50 < min_x && min_x < 2.70 + 1.5 * speed) &&
         (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
             AEB_loop = true;
             break;
