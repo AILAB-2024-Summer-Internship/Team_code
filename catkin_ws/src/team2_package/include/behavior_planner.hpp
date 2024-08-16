@@ -7,7 +7,7 @@
 #include "carla_msgs/CarlaSpeedometer.h" 
 #include "team2_package/vehicle_state.h" // AEB
 #include "std_msgs/Bool.h"
-#include "std_msgs/Float32" //ACC
+#include "std_msgs/Float32.h" //ACC
 
 class BehaviorPlanner{
   public:
@@ -50,9 +50,9 @@ class BehaviorPlanner{
 
     void object_prediction(const std::vector<object>& objects);
     void ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const int& speed);
-    void collision_check(const std::vector<object>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
+    void collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
     void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
-    void local_planner(const int& road_option, const std::vector<object>& objects);
+    // void local_planner(const int& road_option, const std::vector<object>& objects);
     void publisher();
 
   private:
@@ -64,19 +64,19 @@ class BehaviorPlanner{
     // ros::Subscriber yolo_sub;
 
     ros::Publisher AEB_pub;
-    ros::Publisher ref_speed_pub;
-    ros::Publisher ACC_pub;
-    ros::Publisher distance_pub;
-    ros::Publisher waypoints_pub;
+    // ros::Publisher ref_speed_pub;
+    // ros::Publisher ACC_pub;
+    // ros::Publisher distance_pub;
+    // ros::Publisher waypoints_pub;
 
     std::vector<object> objects;
     std::vector<waypoint> waypoints;
     std::vector<waypoint> waypoints_conv;
     std::vector<float> pose;
-    std::vector<object> objects_predict_3s;
+    std::vector<std::vector<object>> objects_predict_3s;
     std::vector<object> ego_predict_3s;
-    std::vector<waypoint_pub> global_waypoints;
-    std::vector<waypoint_pub> local_waypoints;
+    // std::vector<waypoint_pub> global_waypoints;
+    // std::vector<waypoint_pub> local_waypoints;
 
     int road_option;
     float speed;
