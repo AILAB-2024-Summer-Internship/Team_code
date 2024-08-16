@@ -1,12 +1,13 @@
 #include <ros/ros.h>
 #include <vector>
-#include "vision_msgs/BoundingBox2DArray.h"
-#include "carla_msgs/CarlaSpeedometer.h"
-#include "team2_package/vehicle_state.h"
-#include <carla_msgs/CarlaEgoVehicleControl.h>
-#include "team2_package/globalwaypoints.h"
+#include <cmath>
+#include <deque>
+#include "vision_msgs/BoundingBox2DArray.h" // prediction
+#include "team2_package/globalwaypoints.h" // collision check
+#include "carla_msgs/CarlaSpeedometer.h" 
+#include "team2_package/vehicle_state.h" // AEB
 #include "std_msgs/Bool.h"
-#include "std_msgs/Float32.h"
+#include "std_msgs/Float32" //ACC
 
 class BehaviorPlanner{
   public:
@@ -22,100 +23,67 @@ class BehaviorPlanner{
         object(float min_y, float min_x, float max_y, float max_x, float v_y, float v_x);
     };
 
+    struct waypoint {
+      float x;
+      float y;
+      float speed;
+      
+      waypoint();
+      waypoint(float x, float y, float speed);
+    };
+
+    struct waypoint_pub {
+      float x;
+      float y;
+
+      waypoint_pub();
+      waypoint_pub(float x, float y);
+    };
+
     BehaviorPlanner();
 
     void object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg);
+    void waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg);
+    void pose_cb(const team2_package::vehicle_state::ConstPtr& msg);
     void speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg);
-    void yaw_cb(const team2_package::vehicle_state::ConstPtr& msg);
-    void steering_angle_cb(const carla_msgs::CarlaEgoVehicleControl::ConstPtr& msg);
-    void road_option_cb(const team2_package::globalwaypoints::ConstPtr& msg);
-    // void local_fin_cb(const std_msgs::Bool::ConstPtr& msg);
-    // void traffic_sign_cb(const ::ConstPtr& msg);
+    //void yolo_cb();
 
-    void prediction();
-    void collision_check();
-    void AEB();
-    void avoidance();
-    void speed_profile();
+    void object_prediction(const std::vector<object>& objects);
+    void ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const int& speed);
+    void collision_check(const std::vector<object>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
+    void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
+    void local_planner(const int& road_option, const std::vector<object>& objects);
     void publisher();
 
   private:
     ros::NodeHandle nh;
     ros::Subscriber object_sub;
+    ros::Subscriber waypoint_sub;
     ros::Subscriber speed_sub;
-    ros::Subscriber yaw_sub;
-    ros::Subscriber steering_angle_sub;
-    // ros::Subscriber local_fin_sub;
-    // ros::Subscriber traffic_sign_sub;
+    ros::Subscriber pose_sub;
+    // ros::Subscriber yolo_sub;
 
     ros::Publisher AEB_pub;
-    // ros::Publisher local_req_pub;
-    ros::Publisher speed_pub;
+    ros::Publisher ref_speed_pub;
     ros::Publisher ACC_pub;
     ros::Publisher distance_pub;
+    ros::Publisher waypoints_pub;
 
     std::vector<object> objects;
-};
+    std::vector<waypoint> waypoints;
+    std::vector<waypoint> waypoints_conv;
+    std::vector<float> pose;
+    std::vector<object> objects_predict_3s;
+    std::vector<object> ego_predict_3s;
+    std::vector<waypoint_pub> global_waypoints;
+    std::vector<waypoint_pub> local_waypoints;
 
-#include <ros/ros.h>
-#include <vector>
-#include "vision_msgs/BoundingBox2DArray.h"
-#include "carla_msgs/CarlaSpeedometer.h"
-#include "team2_package/vehicle_state.h"
-#include <carla_msgs/CarlaEgoVehicleControl.h>
-#include "team2_package/globalwaypoints.h"
-#include "std_msgs/Bool.h"
-#include "std_msgs/Float32.h"
-#include <iostream>
-
-class BehaviorPlanner{
-  public:
-    struct object{ // vertical y, horizontal x 
-        float min_y;
-        float min_x;
-        float max_y;
-        float max_x;
-        float v_y;
-        float v_x;
-
-        object();
-        object(float min_y, float min_x, float max_y, float max_x, float v_y, float v_x);
-    };
-
-    BehaviorPlanner();
-
-    void object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg);
-    void speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg);
-    // void yaw_cb(const team2_package::vehicle_state::ConstPtr& msg);
-    // void steering_angle_cb(const carla_msgs::CarlaEgoVehicleControl::ConstPtr& msg);
-    // void road_option_cb(const team2_package::globalwaypoints::ConstPtr& msg);
-    // void local_fin_cb(const std_msgs::Bool::ConstPtr& msg);
-    // void traffic_sign_cb(const ::ConstPtr& msg);
-
-    // void prediction();
-    void collision_check(const std::vector<object>& objects);
-    // void AEB();
-    // void avoidance();
-    // void speed_profile();
-    void publisher();
-
-  private:
-    ros::NodeHandle nh;
-    ros::Subscriber object_sub;
-    ros::Subscriber speed_sub;
-    // ros::Subscriber yaw_sub;
-    // ros::Subscriber steering_angle_sub;
-    // ros::Subscriber local_fin_sub;
-    // ros::Subscriber traffic_sign_sub;
-
-    ros::Publisher AEB_pub;
-    // ros::Publisher local_req_pub;
-    // ros::Publisher speed_pub;
-    // ros::Publisher ACC_pub;
-    // ros::Publisher distance_pub;
-
-    std::vector<object> objects;
-
+    int road_option;
     float speed;
     bool AEB;
+    bool slow_down;
+    float ref_speed;
+    bool ACC;
+    float distance;
+    bool local_planning;
 };
