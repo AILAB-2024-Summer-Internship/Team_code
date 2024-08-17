@@ -39,7 +39,7 @@ class BehaviorPlanner{
 
     // void prediction(const std::vector<object>& objects);
     // void collision_check(const std::vector<object>& objects, const std::vector<float>& pose, const int& speed, const std::vector<waypoint>& waypoints);
-    void collision_check(const std::vector<object>& objects);
+    void collision_check(const std::vector<object>& objects, const float& speed);
     void publisher();
 
   private:
@@ -59,6 +59,6 @@ class BehaviorPlanner{
     std::vector<object> ego_predict_3s;
 
     float speed;
-    bool AEB;
+    bool AEB = false;
     int road_option;
 };
