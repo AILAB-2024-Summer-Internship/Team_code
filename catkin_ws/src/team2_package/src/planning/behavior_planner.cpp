@@ -42,7 +42,7 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
         objects.emplace_back(min_y, min_x, max_y, max_x, 0.0, 0.0);
     }
     object_prediction(objects);
-    std::cout << "object_cb" << std::endl; 
+    std::cout << "object size : " << size << std::endl;
 }
 
 void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg) {
@@ -54,7 +54,6 @@ void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr
         waypoints.emplace_back(msg->x[i], msg->y[i], 0.0);
     }
     ego_prediction(waypoints, pose, speed);
-    std::cout << "waypoint_cb" << std::endl;
 }
 
 void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg) {
@@ -63,12 +62,11 @@ void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg)
     pose.push_back(msg->x);
     pose.push_back(msg->y);
     pose.push_back(msg->yaw);
-    std::cout << "pose_cb" << std::endl;
 }
 
 void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg) {
     speed = msg->speed;
-    std::cout << "speed_cb" << std::endl;
+    std::cout << "speed: " << speed << std::endl;
 }
 
 void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
@@ -85,8 +83,10 @@ void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
             predict_3s.emplace_back(min_path_y, min_path_x, max_path_y, max_path_x, 0.0, 0.0);
         }
         objects_predict_3s.emplace_back(predict_3s);
+        std::cout << "predict size: " << predict_3s.size() << std::endl;
     }
-    std::cout << "object_pred" << std::endl;
+    
+    std::cout << "object_prediction size : " << objects_predict_3s.size() << std::endl;
 }
 
 void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const float& speed) {
@@ -124,7 +124,7 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
             waypoints_conv.push_back(waypoint(x3, y3, max_speed));
         }
     }
-
+    std::cout << "waypoints_conv size: " << waypoints_conv.size() << std::endl;
     ego_predict_3s.clear();
     ego_predict_3s.reserve(10);
 
@@ -134,7 +134,8 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
     const auto& waypoint0 = waypoints_conv[0];
     float distance0 = std::sqrt(waypoint0.x * waypoint0.x + waypoint0.y * waypoint0.y);
     int cnt = 10;
-
+    std::cout << "speed2: " << speed << std::endl;
+    std::cout << "distance_0: " << distance0 << std::endl;
     if (speed > 2) {
         int cnt0 = static_cast<int>(distance0 / speed * 0.3);
 
@@ -233,13 +234,13 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
             }
         }
     }
-    std::cout << "ego_pred" << std::endl;
+    std::cout << "ego_predict size: " << ego_predict_3s.size() << std::endl;
 }
 
 void BehaviorPlanner::collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s) {
     bool brake = false;
     bool slow_down_loop = false;
-
+    
     for (size_t i = 0; i < objects_predict_3s.size(); i++) {
         for (int j = 0; j < ego_predict_3s.size(); j++) {
             if ((((ego_predict_3s[j].max_x > objects_predict_3s[i][j].min_x) && (ego_predict_3s[j].max_x < objects_predict_3s[i][j].max_x)) 
@@ -257,10 +258,9 @@ void BehaviorPlanner::collision_check(const std::vector<std::vector<object>>& ob
         }
         if (brake || slow_down_loop) break;
     }
-
+    std::cout << "brake: " << brake << std::endl;
     AEB = brake;
     slow_down = slow_down_loop;
-    std::cout << "collision_check" << std::endl;
 }
 
 // void BehaviorPlanner::speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects) { // trafficlight 추가
@@ -337,12 +337,11 @@ void BehaviorPlanner::publisher(const ros::TimerEvent& event) {
     // ACC_pub.publish(msg2);
     // ref_speed_pub.publish(speed);
     // distance_pub.publish(distance);
-    std::cout << "publish" << std::endl;
 }
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "behavior_planner");
     BehaviorPlanner behaviorplanner;
-    ros::spinOnce();
+    ros::spin();
     return 0;
 }
