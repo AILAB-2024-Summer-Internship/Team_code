@@ -8,6 +8,7 @@
 #include "team2_package/vehicle_state.h" // AEB
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h" //ACC
+#include <iostream>
 
 class BehaviorPlanner{
   public:
@@ -32,13 +33,13 @@ class BehaviorPlanner{
       waypoint(float x, float y, float speed);
     };
 
-    struct waypoint_pub {
-      float x;
-      float y;
+    // struct waypoint_pub {
+    //   float x;
+    //   float y;
 
-      waypoint_pub();
-      waypoint_pub(float x, float y);
-    };
+    //   waypoint_pub();
+    //   waypoint_pub(float x, float y);
+    // };
 
     BehaviorPlanner();
 
@@ -49,10 +50,10 @@ class BehaviorPlanner{
     //void yolo_cb();
 
     void object_prediction(const std::vector<object>& objects);
-    void ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const int& speed);
+    void ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const float& speed);
     void collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
-    void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
-    // void local_planner(const int& road_option, const std::vector<object>& objects);
+    // void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
+    // void local_planner(const int& road_option, const std::vector<object>& objects, const float& speed, const bool& AEB);
     void publisher();
 
   private:
@@ -69,6 +70,8 @@ class BehaviorPlanner{
     // ros::Publisher distance_pub;
     // ros::Publisher waypoints_pub;
 
+    ros::Timer timer;
+
     std::vector<object> objects;
     std::vector<waypoint> waypoints;
     std::vector<waypoint> waypoints_conv;
@@ -80,10 +83,10 @@ class BehaviorPlanner{
 
     int road_option;
     float speed;
-    bool AEB;
-    bool slow_down;
-    float ref_speed;
-    bool ACC;
-    float distance;
-    bool local_planning;
+    bool AEB = false;
+    bool slow_down = false;
+    // float ref_speed;
+    // bool ACC = false;
+    // float distance;
+    // bool local_planning= false;
 };
