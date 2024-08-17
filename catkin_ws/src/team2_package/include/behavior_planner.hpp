@@ -54,7 +54,7 @@ class BehaviorPlanner{
     void collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
     // void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
     // void local_planner(const int& road_option, const std::vector<object>& objects, const float& speed, const bool& AEB);
-    void publisher();
+    void publisher(const ros::TimerEvent& event);
 
   private:
     ros::NodeHandle nh;
