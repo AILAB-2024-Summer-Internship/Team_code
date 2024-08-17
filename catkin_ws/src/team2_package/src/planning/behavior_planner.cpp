@@ -7,7 +7,7 @@ BehaviorPlanner::waypoint::waypoint() : x(0.0), y(0.0), speed(0.0) {}
 BehaviorPlanner::waypoint::waypoint(float x, float y, float speed) : x(x), y(y), speed(speed) {}
 
 BehaviorPlanner::BehaviorPlanner() {
-    object_sub = nh.subscribe("/bounding_box", 10, &BehaviorPlanner::object_cb, this);
+    object_sub = nh.subscribe("/pub_planner_bbox", 10, &BehaviorPlanner::object_cb, this);
     // waypoint_sub = nh.subscribe("/carla/hero/my_global_plan", 10, &BehaviorPlanner::waypoint_cb, this);
     speed_sub = nh.subscribe("/carla/hero/Speed", 10, &BehaviorPlanner::speed_cb, this);
     // pose_sub = nh.subscribe("/carla/hero/localization", 10, &CollisionCheck::pose_cb, this);
@@ -74,28 +74,29 @@ void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg
 //     float my_x = 
 // }
 
-void BehaviorPlanner::collision_check(const std::vector<object>& objects, const float& speed) {
+void BehaviorPlanner::collision_check(const std::vector<object>& objects, const float& speed) { // min_max add
     size_t size = objects.size();
     bool AEB_loop = false;
     for (int i = 0; i < size; i++) {
         float min_x = objects[i].min_x;
         float min_y = objects[i].min_y;
         float max_y = objects[i].max_y;
-    if (speed > 2.0) {
-        if ((2.50 < min_x && min_x < 2.50 + 1.5 * speed) &&
-        (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
-            AEB_loop = true;
-            break;
+        if (speed > 3.0) {
+            if ((2.50 < min_x && min_x < 2.50 + 1.5 * speed) &&
+            (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
+                AEB_loop = true;
+                break;
+            } else {
+                AEB_loop = false;
+            }
         } else {
-            AEB_loop = false;
-        }
-    else {
-        if ((2.50 < min_x && min_x < 4.5) &&
-        (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
-            AEB_loop = true;
-            break;
-        } else {
-            AEB_loop = false;
+            if ((2.50 < min_x && min_x < 7.0) &&
+            (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
+                AEB_loop = true;
+                break;
+            } else {
+                AEB_loop = false;
+            }
         }
     }
     if (AEB_loop) {
