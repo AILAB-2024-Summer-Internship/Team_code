@@ -50,11 +50,12 @@ class BehaviorPlanner{
     //void yolo_cb();
 
     void object_prediction(const std::vector<object>& objects);
-    void ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const float& speed);
+    void waypoints_convert(const std::vector<waypoint>& waypoints, const std::vector<float>& pose);
+    void ego_prediction(const std::vector<waypoint>& waypoints_conv, const float& speed);
     void collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s);
     // void speed_profiling(const std::vector<waypoint>& waypoints_conv, const int& road_option, const std::vector<object>& objects);
     // void local_planner(const int& road_option, const std::vector<object>& objects, const float& speed, const bool& AEB);
-    void publisher(const ros::TimerEvent& event);
+    void publisher();
 
   private:
     ros::NodeHandle nh;
