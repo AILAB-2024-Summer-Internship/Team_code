@@ -42,7 +42,7 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
         objects.emplace_back(min_y, min_x, max_y, max_x, 0.0, 0.0);
     }
     object_prediction(objects);
-    std::cout << "object size : " << size << std::endl;
+    std::cout << "object size : " << size << std::endl; 
 }
 
 void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg) {
@@ -53,7 +53,7 @@ void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr
     for (size_t i = 0; i < size; i++) {
         waypoints.emplace_back(msg->x[i], msg->y[i], 0.0);
     }
-    ego_prediction(waypoints, pose, speed);
+    waypoints_convert(waypoints, pose);
 }
 
 void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg) {
@@ -66,6 +66,7 @@ void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg)
 
 void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg) {
     speed = msg->speed;
+    ego_prediction(waypoints_conv, speed);
     std::cout << "speed: " << speed << std::endl;
 }
 
@@ -83,13 +84,11 @@ void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
             predict_3s.emplace_back(min_path_y, min_path_x, max_path_y, max_path_x, 0.0, 0.0);
         }
         objects_predict_3s.emplace_back(predict_3s);
-        std::cout << "predict size: " << predict_3s.size() << std::endl;
     }
-    
     std::cout << "object_prediction size : " << objects_predict_3s.size() << std::endl;
 }
 
-void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, const std::vector<float>& pose, const float& speed) {
+void BehaviorPlanner::waypoints_convert(const std::vector<waypoint>& waypoints, const std::vector<float>& pose) {
     waypoints_conv.clear();
     size_t size = waypoints.size();
 
@@ -124,54 +123,72 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
             waypoints_conv.push_back(waypoint(x3, y3, max_speed));
         }
     }
-    std::cout << "waypoints_conv size: " << waypoints_conv.size() << std::endl;
+    std::cout << "waypoints conv size : " << waypoints_conv.size() << std::endl;
+}
+
+void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints_conv, const float& speed) {
     ego_predict_3s.clear();
     ego_predict_3s.reserve(10);
+
+    float time_step = 0.3;
+    float accumulated_time = 0.0;
+    float remaining_time = 0.0;
+    int cnt = 10;
 
     float car_half_width = 0.95;
     float car_half_length = 2.48;
 
-    const auto& waypoint0 = waypoints_conv[0];
-    float distance0 = std::sqrt(waypoint0.x * waypoint0.x + waypoint0.y * waypoint0.y);
-    int cnt = 10;
-    std::cout << "speed2: " << speed << std::endl;
-    std::cout << "distance_0: " << distance0 << std::endl;
-    if (speed > 2) {
-        int cnt0 = static_cast<int>(distance0 / speed * 0.3);
+    if (speed > 2.0) {
+        const auto& waypoint0 = waypoints_conv[0];
+        float distance0 = std::sqrt(waypoint0.x * waypoint0.x + waypoint0.y * waypoint0.y);
+        float segment_time = distance0 / speed;
 
-        for (int n = 0; n < cnt0; n++) {
-            float offset = speed * 0.3 * n;
-            float min_x = offset - car_half_length;
-            float max_x = offset + car_half_length;
+        while (accumulated_time + segment_time >= time_step && time_step <= 3.0f) {
+            float ratio = (time_step - accumulated_time) / segment_time;
+            float predict_x = ratio * wp1.x;
+            float predict_y = ratio * wp1.y;
 
-            ego_predict_3s.emplace_back(-car_half_width, min_x, car_half_width, max_x, 0.0, 0.0);
+            ego_predict_3s.emplace_back(predict_y - car_half_width, predict_x - car_half_length, predict_y + car_half_width, predict_x + car_half_length, 0.0f, 0.0f);
+
+            time_step += 0.3f;
 
             if (--cnt < 1) {
                 return;
             }
         }
 
-        for (size_t i = 1; i < waypoints_conv.size() - 1; i++) {
+        accumulated_time += segment_time;
+        remaining_time = time_step - accumulated_time;
+
+        for (size_t i = 0; i < waypoints_conv.size() - 1 && time_step <= 3.0f; i++) {
             const auto& waypoint1 = waypoints_conv[i];
             const auto& waypoint2 = waypoints_conv[i + 1];
             float dx = waypoint2.x - waypoint1.x;
             float dy = waypoint2.y - waypoint1.y;
-            float distance = std::sqrt(dx * dx + dy * dy);
+
+            float segment_distance = std::sqrt(dx * dx + dy * dy);
+            float actual_speed = (waypoint1.speed > speed) ? speed : waypoint1.speed;
+            float segment_time = segment_distance / actual_speed;
             float angle = atan2(dy, dx) - M_PI_2;
             float cos_angle = cos(angle);
             float sin_angle = sin(angle);
+            
+            if (remaining_time > 0) {
+                accumulated_time = remaining_time;
+                remaining_time = 0;
+            } else {
+                accumulated_time = 0.0f;
+            }
 
-            float actual_speed = (waypoint1.speed > speed) ? speed : waypoint1.speed;
-            int cnt00 = static_cast<int>(distance / actual_speed * 0.3);
+            while (accumulated_time + segment_time >= time_step && time_step <= 3.0f) {
+                float ratio = (time_step - accumulated_time) / segment_time;
+                float predict_x = wp1.x + ratio * dx;
+                float predict_y = wp1.y + ratio * dy;
 
-            for (int j = 0; j < cnt00; j++) {
-                float offset_x = (dx / distance0) * actual_speed * 0.3 * j + waypoint1.x;
-                float offset_y = (dy / distance0) * actual_speed * 0.3 * j + waypoint1.y;
-
-                float min_y = offset_y - car_half_width;
-                float min_x = offset_x - car_half_length;
-                float max_y = offset_y + car_half_width;
-                float max_x = offset_x + car_half_length;
+                float min_y = predict_y - car_half_width;
+                float min_x = predict_x - car_half_length;
+                float max_y = predict_y + car_half_width;
+                float max_x = predict_x + car_half_length;
 
                 float r_min_y = min_y * cos_angle - min_x * sin_angle;
                 float r_min_x = min_y * sin_angle + min_x * cos_angle;
@@ -180,46 +197,72 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
 
                 ego_predict_3s.emplace_back(r_min_y, r_min_x, r_max_y, r_max_x, 0.0, 0.0);
 
+                time_step += 0.3f;
+
                 if (--cnt < 1) {
                     return;
                 }
             }
+            accumulated_time += segment_time;
+        }
+
+        while (time_step <= 3.0f && cnt > 0) {
+            const auto& wp_last = waypoints_conv.back();
+            ego_predict_3s.emplace_back(wp_last.y - car_half_width, wp_last.x - car_half_length, wp_last.y + car_half_width, wp_last.x + car_half_length, 0.0f, 0.0f);
+
+            time_step += 0.3f;
+            --cnt;
         }
     } else {
-        int cnt0 = static_cast<int>(distance0 / 2 * 0.3);
+        const auto& waypoint0 = waypoints_conv[0];
+        float distance0 = std::sqrt(waypoint0.x * waypoint0.x + waypoint0.y * waypoint0.y);
+        float segment_time = distance0 / 2;
 
-        for (int n = 0; n < cnt0; n++) {
-            float offset = 2 * 0.3 * n;
-            float min_x = offset - car_half_length;
-            float max_x = offset + car_half_length;
+        while (accumulated_time + segment_time >= time_step && time_step <= 3.0f) {
+            float ratio = (time_step - accumulated_time) / segment_time;
+            float predict_x = ratio * wp1.x;
+            float predict_y = ratio * wp1.y;
 
-            ego_predict_3s.emplace_back(-car_half_width, min_x, car_half_width, max_x, 0.0, 0.0);
+            ego_predict_3s.emplace_back(predict_y - car_half_width, predict_x - car_half_length, predict_y + car_half_width, predict_x + car_half_length, 0.0f, 0.0f);
+
+            time_step += 0.3f;
 
             if (--cnt < 1) {
                 return;
             }
         }
 
-        for (size_t i = 1; i < waypoints_conv.size() - 1; i++) {
+        accumulated_time += segment_time;
+        remaining_time = time_step - accumulated_time;
+
+        for (size_t i = 0; i < waypoints_conv.size() - 1 && time_step <= 3.0f; i++) {
             const auto& waypoint1 = waypoints_conv[i];
             const auto& waypoint2 = waypoints_conv[i + 1];
             float dx = waypoint2.x - waypoint1.x;
             float dy = waypoint2.y - waypoint1.y;
-            float distance = std::sqrt(dx * dx + dy * dy);
+
+            float segment_distance = std::sqrt(dx * dx + dy * dy);
+            float segment_time = segment_distance / 2;
             float angle = atan2(dy, dx) - M_PI_2;
             float cos_angle = cos(angle);
             float sin_angle = sin(angle);
+            
+            if (remaining_time > 0) {
+                accumulated_time = remaining_time;
+                remaining_time = 0;
+            } else {
+                accumulated_time = 0.0f;
+            }
 
-            int cnt00 = static_cast<int>(distance / 2 * 0.3);
+            while (accumulated_time + segment_time >= time_step && time_step <= 3.0f) {
+                float ratio = (time_step - accumulated_time) / segment_time;
+                float predict_x = wp1.x + ratio * dx;
+                float predict_y = wp1.y + ratio * dy;
 
-            for (int j = 0; j < cnt00; j++) {
-                float offset_x = (dx / distance0) * 2 * 0.3 * j + waypoint1.x;
-                float offset_y = (dy / distance0) * 2 * 0.3 * j + waypoint1.y;
-
-                float min_y = offset_y - car_half_width;
-                float min_x = offset_x - car_half_length;
-                float max_y = offset_y + car_half_width;
-                float max_x = offset_x + car_half_length;
+                float min_y = predict_y - car_half_width;
+                float min_x = predict_x - car_half_length;
+                float max_y = predict_y + car_half_width;
+                float max_x = predict_x + car_half_length;
 
                 float r_min_y = min_y * cos_angle - min_x * sin_angle;
                 float r_min_x = min_y * sin_angle + min_x * cos_angle;
@@ -228,10 +271,21 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
 
                 ego_predict_3s.emplace_back(r_min_y, r_min_x, r_max_y, r_max_x, 0.0, 0.0);
 
+                time_step += 0.3f;
+
                 if (--cnt < 1) {
                     return;
                 }
             }
+            accumulated_time += segment_time;
+        }
+
+        while (time_step <= 3.0f && cnt > 0) {
+            const auto& wp_last = waypoints_conv.back();
+            ego_predict_3s.emplace_back(wp_last.y - car_half_width, wp_last.x - car_half_length, wp_last.y + car_half_width, wp_last.x + car_half_length, 0.0f, 0.0f);
+
+            time_step += 0.3f;
+            --cnt;
         }
     }
     std::cout << "ego_predict size: " << ego_predict_3s.size() << std::endl;
@@ -240,7 +294,7 @@ void BehaviorPlanner::ego_prediction(const std::vector<waypoint>& waypoints, con
 void BehaviorPlanner::collision_check(const std::vector<std::vector<object>>& objects_predict_3s, const std::vector<object>& ego_predict_3s) {
     bool brake = false;
     bool slow_down_loop = false;
-    
+
     for (size_t i = 0; i < objects_predict_3s.size(); i++) {
         for (int j = 0; j < ego_predict_3s.size(); j++) {
             if ((((ego_predict_3s[j].max_x > objects_predict_3s[i][j].min_x) && (ego_predict_3s[j].max_x < objects_predict_3s[i][j].max_x)) 
@@ -337,11 +391,12 @@ void BehaviorPlanner::publisher(const ros::TimerEvent& event) {
     // ACC_pub.publish(msg2);
     // ref_speed_pub.publish(speed);
     // distance_pub.publish(distance);
+    std::cout << "publish" << std::endl;
 }
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "behavior_planner");
     BehaviorPlanner behaviorplanner;
-    ros::spin();
+    ros::spinOnce();
     return 0;
 }
