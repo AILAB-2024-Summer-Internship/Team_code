@@ -33,12 +33,7 @@ class BehaviorPlanner{
     BehaviorPlanner();
 
     void object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr& msg);
-    // void waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg);
     void speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg);
-    // void pose_cb(const team2_package::vehicle_state::ConstPtr& msg);
-
-    // void prediction(const std::vector<object>& objects);
-    // void collision_check(const std::vector<object>& objects, const std::vector<float>& pose, const int& speed, const std::vector<waypoint>& waypoints);
     void collision_check(const std::vector<object>& objects, const float& speed);
     void publisher();
 
