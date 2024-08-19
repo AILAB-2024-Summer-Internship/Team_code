@@ -8,9 +8,7 @@ BehaviorPlanner::waypoint::waypoint(float x, float y, float speed) : x(x), y(y),
 
 BehaviorPlanner::BehaviorPlanner() {
     object_sub = nh.subscribe("/pub_planner_bbox", 10, &BehaviorPlanner::object_cb, this);
-    // waypoint_sub = nh.subscribe("/carla/hero/my_global_plan", 10, &BehaviorPlanner::waypoint_cb, this);
     speed_sub = nh.subscribe("/carla/hero/Speed", 10, &BehaviorPlanner::speed_cb, this);
-    // pose_sub = nh.subscribe("/carla/hero/localization", 10, &CollisionCheck::pose_cb, this);
     
     AEB_pub = nh.advertise<std_msgs::Bool>("/carla/hero/AEB", 10);
 
@@ -31,58 +29,24 @@ void BehaviorPlanner::object_cb(const vision_msgs::BoundingBox2DArray::ConstPtr&
         objects.push_back(object(min_y, min_x, max_y, max_x, v_y, v_x));
     }
     if (size != 0) {
-    // object_prediction(objects);
         collision_check(objects, speed);
     }
 }
 
-// void BehaviorPlanner::waypoint_cb(const team2_package::globalwaypoints::ConstPtr& msg) {
-//     size_t size = road_options.size();
-//     for (int i = 0; i < size; i++) {
-//         waypoints[i].x = msg->x[i];
-//         waypoints[i].y = msg->y[i];
-//     }
-//     road_option = road_options[0];
-// }
-
-// void BehaviorPlanner::pose_cb(const team2_package::vehicle_state::ConstPtr& msg) {
-//     pose[0] = msg->x;
-//     pose[1] = msg->y;
-//     pose[2] = msg->yaw;
-// }
-
 void BehaviorPlanner::speed_cb(const carla_msgs::CarlaSpeedometer::ConstPtr& msg) {
     speed = msg->speed;
 }
-
-// void BehaviorPlanner::object_prediction(const std::vector<object>& objects) {
-//     for(int i = 0; i < objects.size(); i++) {
-//         std::vector<object> predict_3s;
-//         predict_3s.reserve(10);
-//         for(int j = 0; j < 10; j++) {
-//             float min_path_y = objects[i].min_y + 0.3 * j * objects[i].v_y;
-//             float max_path_y = objects[i].max_y + 0.3 * j * objects[i].v_y;
-//             float min_path_x = objects[i].min_x + 0.3 * j * objects[i].v_x;
-//             float max_path_x = objects[i].max_x + 0.3 * j * objects[i].v_x;
-//             predict_3s.push_back(object(min_path_y, max_path_y, min_path_x, min_path_y, 0, 0));
-//         }
-//         objects_predict_3s.emplace_back(predict_3s);
-//     }
-// }
-
-// void BehaviorPlanner::collision_check(const std::vector<object>& objects_predict_3s) {
-//     float my_x = 
-// }
 
 void BehaviorPlanner::collision_check(const std::vector<object>& objects, const float& speed) { // min_max add
     size_t size = objects.size();
     bool AEB_loop = false;
     for (int i = 0; i < size; i++) {
         float min_x = objects[i].min_x;
+        float max_x = objects[i].max_x;
         float min_y = objects[i].min_y;
         float max_y = objects[i].max_y;
-        if (speed > 3.0) {
-            if ((2.50 < min_x && min_x < 2.50 + 1.5 * speed) &&
+        if (speed > 2.0) {
+            if (((2.50 < min_x && min_x < 2.50 + 1.5 * speed) || (min_x <= 2.50 && 2.50 <= max_x)) &&
             (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
                 AEB_loop = true;
                 break;
@@ -90,7 +54,7 @@ void BehaviorPlanner::collision_check(const std::vector<object>& objects, const 
                 AEB_loop = false;
             }
         } else {
-            if ((2.50 < min_x && min_x < 7.0) &&
+            if (((2.50 < min_x && min_x < 5.5) || (min_x <= 2.50 && 2.50 <= max_x)) &&
             (((max_y >= -1) && (min_y < -1)) || ((min_y < 1) && (max_y > 1)) || (-1 < min_y && max_y < 1))) {
                 AEB_loop = true;
                 break;
